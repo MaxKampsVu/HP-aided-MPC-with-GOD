@@ -46,15 +46,18 @@ namespace dmAsyncAsteriskGOD {
         // static PreprocCircuit<Field> dummy(int nP, int id, const LevelOrderedCircuit& circ, 
         //     const std::unordered_map<wire_t, int>& input_pid_map, PRG& prg);
         void keyGen();
-        static void randomShare(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire);
+        static void RandSS(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire);
         static void randomShareSecret(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
             TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
-        static void randomShareWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
+        static void RandSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
         void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
         void multSS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
         void prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map);
         // void prepareMaskTags();
         void setWireMasks(const std::unordered_map<wire_t, int>& input_pid_map);
+        /*
+         * input_pid_map is map for input dealers to process ids to give them masks of their inputs in the clear  
+         */
         PreprocCircuit<Field> run(const std::unordered_map<wire_t, int>& input_pid_map);
     };
 }; // namespace dmAsyncAsteriskGOD

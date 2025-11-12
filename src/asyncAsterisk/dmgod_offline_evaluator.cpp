@@ -69,7 +69,6 @@ namespace dmAsyncAsteriskGOD {
   }
 
   void OfflineEvaluator::keyGen()  {
-    std::cout << id_ << ": I did the key gen" << std::endl;
     if(id_ == 0) {
       key_sh_.resize(nP_);
       for(size_t i = 1; i <= nP_; i++) {
@@ -83,7 +82,7 @@ namespace dmAsyncAsteriskGOD {
     }
   }
 
-  void OfflineEvaluator::randomShare(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire) {
+  void OfflineEvaluator::RandSS(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire) {
     // TP 
     if(pid == 0) {      
       Field valSh;
@@ -107,7 +106,7 @@ namespace dmAsyncAsteriskGOD {
     prodShare.setValue(Field(0));
   }  
 
-  void OfflineEvaluator::randomShareWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret) {        
+  void OfflineEvaluator::RandSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret) {        
     secret = Field(0);
     Field valSh;
     // TP 
@@ -202,7 +201,8 @@ namespace dmAsyncAsteriskGOD {
             auto pregate = std::make_unique<PreprocInput<Field>>();      
             auto pid = input_pid_map.at(gate->out);
             pregate->pid = pid;
-            randomShareWithParty(id_, pid, rgen_, pregate->mask, pregate->mask_value);      
+            // Give mask of input gate in the clear to dealer 
+            RandSSWithParty(id_, pid, rgen_, pregate->mask, pregate->mask_value);      
             preproc_.gates[gate->out] = std::move(pregate);                
             break;
           }
@@ -241,21 +241,22 @@ namespace dmAsyncAsteriskGOD {
             if (id_ == nP_) {
               buffer_num += 2;
             }
+            // Create the output wire mask share and initialize it later 
             preproc_.gates[gate->out] = std::make_unique<PreprocMultGate<Field>>();
             const auto* g = static_cast<FIn2Gate*>(gate.get());
+            // Get the input wires mask shares 
             const auto& mask_in1 = preproc_.gates[g->in1]->mask;
             const auto& mask_in2 = preproc_.gates[g->in2]->mask;
-            TwoShare<Field> rand_mask; 
+            TwoShare<Field> mask_out; 
             Field mask_share_zero = Field(0);
             bool isOutputWire = false;
             if (std::find(circ_.outputs.begin(), circ_.outputs.end(),g->out)!=circ_.outputs.end())
               isOutputWire = true;
-            randomShare(id_, rgen_, rand_mask, mask_share_zero, isOutputWire);
+            
+            RandSS(id_, rgen_, mask_out, mask_share_zero, isOutputWire);
             TwoShare<Field> mask_product;
-            std::cout << id_ << ": starts randomShareSecret" << std::endl;
             randomShareSecret(id_, rgen_, mask_in1, mask_in2, mask_product, inputToOPE[0]);
-            auto dummy = TwoShare<Field>();
-            preproc_.gates[gate->out] = std::move(std::make_unique<PreprocMultGate<Field>> (rand_mask, mask_product, mask_share_zero, dummy, dummy));
+            preproc_.gates[gate->out] = std::move(std::make_unique<PreprocMultGate<Field>> (mask_out, mask_product));
             break;
           }
 
@@ -270,12 +271,9 @@ namespace dmAsyncAsteriskGOD {
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
     
-    std::cout << id_ << ": I started runOPE" << std::endl;
     runOPE(inputToOPE[0], outputOfOPE, 0);
-    std::cout << id_ << ": I finished runOPE" << std::endl;
 
-    // This is only for Castor where the last Party receives a different share 
-    // // if (id_ != nP_) {
+    // After OLEs compute output mask on multiplication gates 
     for (const auto& level : circ_.gates_by_level) {
       for (const auto& gate : level) {
         switch (gate->type) {
@@ -286,6 +284,7 @@ namespace dmAsyncAsteriskGOD {
             auto mask_in1_in2_product_val = pre_mul->mask_prod.getValue();
             auto mask_in1_val = preproc_.gates[g->in1]->mask.getValue();
             auto mask_in2_val = preproc_.gates[g->in2]->mask.getValue();
+            // Compute product share 
             multSS(mask_in1_val, mask_in2_val, mask_in1_in2_product_val, outputOfOPE, idx_outputOfOPE);
             pre_mul->mask_prod.setValue(mask_in1_in2_product_val);
             break;
@@ -300,299 +299,11 @@ namespace dmAsyncAsteriskGOD {
     outputOfOPE.clear();
     outputOfOPE.shrink_to_fit();
   }
-
-//   void OfflineEvaluator::prepareMaskTags() {
-//     std::vector<Field> buffer; 
-//     size_t idx_buffer=0; 
-//     size_t buffer_num=0;
-
-//     for (const auto& level : circ_.gates_by_level) {
-//       for (const auto& gate : level) {
-//         switch (gate->type) {
-//           case GateType::kInp: {
-//             if (id_ == nP_) {
-//               buffer_num += 1;
-//             }
-//             auto *pre_input = static_cast<PreprocInput<Field> *>(preproc_.gates[gate->out].get());
-//             auto share1 = pre_input->mask.getValues();
-//             auto share2 = pre_input->mask.getKeySh();
-//             if (id_!=0) {      
-//               inputToOPE[1].push_back(share1[1]);
-//               inputToOPE[1].push_back(share2[1]);
-//             }
-//             else {
-//               Field a = Field(0), b = Field(0);
-//               for (size_t i=0; i < nP_; i++) {
-//                 a += share1[i];
-//                 b += share2[i];
-//               }
-//               inputToOPE[1].push_back(b);
-//               inputToOPE[1].push_back(a);
-//             }
-//             break;
-//           }
-
-//           case GateType::kMul: {
-//             if (id_ == nP_) {
-//               buffer_num += 4;
-//             }
-//             auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
-//             std::vector<Field> share1, share2;
-//             share1 = pre_mul->mask.getValues();
-//             share2 = pre_mul->mask.getKeySh();
-//             if (id_!=0) {      
-//               inputToOPE[1].push_back(share1[1]);
-//               inputToOPE[1].push_back(share2[1]);
-//             }
-//             else {
-//               Field a = Field(0), b = Field(0);
-//               for (size_t i=0; i < nP_; i++) {
-//                 a += share1[i];
-//                 b += share2[i];
-//               }
-//               inputToOPE[1].push_back(b);
-//               inputToOPE[1].push_back(a);
-//             }
-//             share1 = pre_mul->mask_prod.getValues();
-//             share2 = pre_mul->mask_prod.getKeySh();
-//             if (id_!=0) {      
-//               inputToOPE[1].push_back(share1[1]);
-//               inputToOPE[1].push_back(share2[1]);
-//             }
-//             else {
-//               Field a = Field(0), b = Field(0);
-//               for (size_t i=0; i < nP_; i++) {
-//                 a += share1[i];
-//                 b += share2[i];
-//               }
-//               inputToOPE[1].push_back(b);
-//               inputToOPE[1].push_back(a);
-//             }
-//             share1 = pre_mul->ver.getValues();
-//             share2 = pre_mul->ver.getKeySh();
-//             if (id_!=0) {      
-//               inputToOPE[1].push_back(share1[1]);
-//               inputToOPE[1].push_back(share2[1]);
-//             }
-//             else {
-//               Field a = Field(0), b = Field(0);
-//               for (size_t i=0; i < nP_; i++) {
-//                 a += share1[i];
-//                 b += share2[i];
-//               }
-//               inputToOPE[1].push_back(b);
-//               inputToOPE[1].push_back(a);
-//             }
-//             share1 = pre_mul->ver_prod.getValues();
-//             share2 = pre_mul->ver_prod.getKeySh();
-//             if (id_!=0) {      
-//               inputToOPE[1].push_back(share1[1]);
-//               inputToOPE[1].push_back(share2[1]);
-//             }
-//             else {
-//               Field a = Field(0), b = Field(0);
-//               for (size_t i=0; i < nP_; i++) {
-//                 a += share1[i];
-//                 b += share2[i];
-//               }
-//               inputToOPE[1].push_back(b);
-//               inputToOPE[1].push_back(a);
-//             }
-//             break;
-//           }
-
-//           default: {
-//             break;
-//           }
-//         }
-//       }
-//     }
-
-//     std::vector<Field> outputOfOPE;
-//     size_t idx_outputOfOPE = 0;
-
-//     runOPE(inputToOPE[1], outputOfOPE, 1);
-
-//     if (id_ != nP_) {
-//       for (const auto& level : circ_.gates_by_level) {
-//         for (const auto& gate : level) {
-//           switch (gate->type) {
-//             case GateType::kInp: {
-//               auto *pre_input = static_cast<PreprocInput<Field> *>(preproc_.gates[gate->out].get());
-//               std::vector<Field> tags;
-//               auto share1 = pre_input->mask.getValues();;
-//               auto share2 = pre_input->mask.getKeySh();
-//               tags.resize(share1.size());
-//               multiply(share1, share2, tags, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_input->mask.setTags(tags);                
-//               break;
-//             }
-
-//             case GateType::kAdd: {
-//               const auto* g = static_cast<FIn2Gate*>(gate.get());
-//               const auto& mask_in1 = preproc_.gates[g->in1]->mask;
-//               const auto& mask_in2 = preproc_.gates[g->in2]->mask;
-//               preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 + mask_in2));    
-//               break;
-//             }
-  
-//             case GateType::kConstAdd: {
-//               const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
-//               const auto& mask = preproc_.gates[g->in]->mask;
-//               preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
-//               break;
-//             }
-  
-//             case GateType::kConstMul: {
-//               const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
-//               const auto& mask = preproc_.gates[g->in]->mask * g->cval;
-//               preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
-//               break;
-//             }
-  
-//             case GateType::kSub: {
-//               const auto* g = static_cast<FIn2Gate*>(gate.get());
-//               const auto& mask_in1 = preproc_.gates[g->in1]->mask;
-//               const auto& mask_in2 = preproc_.gates[g->in2]->mask;
-//               preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 - mask_in2));
-//               break;
-//             }
-
-//             case GateType::kMul: {
-//               auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
-//               std::vector<Field> share1, share2, tags1, tags2, tags3, tags4;
-//               share1 = pre_mul->mask.getValues();
-//               share2 = pre_mul->mask.getKeySh();
-//               tags1.resize(share1.size());
-//               multiply(share1, share2, tags1, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_mul->mask.setTags(tags1);
-//               share1 = pre_mul->mask_prod.getValues();
-//               share2 = pre_mul->mask_prod.getKeySh();
-//               tags2.resize(share1.size());
-//               multiply(share1, share2, tags2, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_mul->mask_prod.setTags(tags2);
-//               share1 = pre_mul->ver.getValues();
-//               share2 = pre_mul->ver.getKeySh();
-//               tags3.resize(share1.size());
-//               multiply(share1, share2, tags3, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_mul->ver.setTags(tags3);
-//               share1 = pre_mul->ver_prod.getValues();
-//               share2 = pre_mul->ver_prod.getKeySh();
-//               tags4.resize(share1.size());
-//               multiply(share1, share2, tags4, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_mul->ver_prod.setTags(tags4);            
-//               break;
-//             }
-    
-//             default: {
-//               break;
-//             }
-//           }
-//         }
-//       }
-//       outputOfOPE.clear();
-//       outputOfOPE.shrink_to_fit();
-
-//       if (id_ == 0) {
-//         buffer_num = buffer.size();
-//         network_->send(nP_, buffer.data(), sizeof(Field) * buffer_num);
-//         network_->getSendChannel(nP_)->flush();
-//         buffer.clear();
-//         buffer.shrink_to_fit();
-//       }      
-//     }
-//     else {
-//       buffer.resize(buffer_num);
-//       network_->recv(0, buffer.data(), sizeof(Field) * buffer_num);
-
-//       for (const auto& level : circ_.gates_by_level) {
-//         for (const auto& gate : level) {
-//           switch (gate->type) {
-//             case GateType::kInp: {
-//               auto *pre_input = static_cast<PreprocInput<Field> *>(preproc_.gates[gate->out].get());
-//               std::vector<Field> tags;
-//               auto share1 = pre_input->mask.getValues();
-//               auto share2 = pre_input->mask.getKeySh();
-//               tags.resize(share1.size());
-//               multiply(share1, share2, tags, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_input->mask.setTags(tags);                
-//               break;
-//             }
-
-//             case GateType::kAdd: {
-//               const auto* g = static_cast<FIn2Gate*>(gate.get());
-//               const auto& mask_in1 = preproc_.gates[g->in1]->mask;
-//               const auto& mask_in2 = preproc_.gates[g->in2]->mask;
-//               preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 + mask_in2));    
-//               break;
-//             }
-  
-//             case GateType::kConstAdd: {
-//               const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
-//               const auto& mask = preproc_.gates[g->in]->mask;
-//               preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
-//               break;
-//             }
-  
-//             case GateType::kConstMul: {
-//               const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
-//               const auto& mask = preproc_.gates[g->in]->mask * g->cval;
-//               preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
-//               break;
-//             }
-  
-//             case GateType::kSub: {
-//               const auto* g = static_cast<FIn2Gate*>(gate.get());
-//               const auto& mask_in1 = preproc_.gates[g->in1]->mask;
-//               const auto& mask_in2 = preproc_.gates[g->in2]->mask;
-//               preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 - mask_in2));
-//               break;
-//             }
-
-//             case GateType::kMul: {
-//               auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
-//               std::vector<Field> share1, share2, tags1, tags2, tags3, tags4;
-//               share1 = pre_mul->mask.getValues();
-//               share2 = pre_mul->mask.getKeySh();
-//               tags1.resize(share1.size());
-//               multiply(share1, share2, tags1, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_mul->mask.setTags(tags1);
-//               share1 = pre_mul->mask_prod.getValues();
-//               share2 = pre_mul->mask_prod.getKeySh();
-//               tags2.resize(share1.size())buffer;
-//               multiply(share1, share2, tags2, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_mul->mask_prod.setTags(tags2);
-//               share1 = pre_mul->ver.getValues();
-//               share2 = pre_mul->ver.getKeySh();
-//               tags3.resize(share1.size());
-//               multiply(share1, share2, tags3, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_mul->ver.setTags(tagsbuffer3);
-//               share1 = pre_mul->ver_prod.getValues();
-//               share2 = pre_mul->ver_prod.getKeySh();
-//               tags4.resize(share1.size());
-//               multiply(share1, share2, tags4, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
-//               pre_mul->ver_prod.setTags(tags4);
-//               break;
-//             }
-
-//             default: {
-//               break;
-//             }
-//           }
-//         }
-//       }
-//       outputOfOPE.clear();
-//       outputOfOPE.shrink_to_fit();
-//       buffer.clear();
-//       buffer.shrink_to_fit();
-//     }
-//   }
     
   void OfflineEvaluator::setWireMasks(const std::unordered_map<wire_t,int>& input_pid_map) {      
     keyGen();
     prepareMaskValues(input_pid_map);
     //prepareMaskTags(); 
-
   }
 
   PreprocCircuit<Field> OfflineEvaluator::run(const std::unordered_map<wire_t, int>& input_pid_map) {

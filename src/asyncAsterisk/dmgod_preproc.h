@@ -5,13 +5,10 @@
 namespace dmAsyncAsteriskGOD {
   template <class R>
   struct PreprocGate {
-    // Secret shared mask for the output wire of the gate.
-    TwoShare<R> mask{};
-    R mask_share_zero{};
+    TwoShare<R> mask; // Secret shared mask for the output wire of the gate.
 
     PreprocGate() = default;
     explicit PreprocGate(const TwoShare<R>& mask) : mask(mask) {}
-    explicit PreprocGate(const TwoShare<R>& mask, const R& mask_share_zero) : mask(mask), mask_share_zero(mask_share_zero) {}
     virtual ~PreprocGate() = default;
   };
 
@@ -20,8 +17,8 @@ namespace dmAsyncAsteriskGOD {
 
   template <class R>
   struct PreprocInput : public PreprocGate<R> {
-    int pid{};
-    R mask_value{};
+    int pid{}; // id of input provider 
+    R mask_value{}; // mask known only to input provider 
 
     PreprocInput() = default;
     PreprocInput(const TwoShare<R>& mask, int pid, R mask_value = 0) 
@@ -34,14 +31,10 @@ namespace dmAsyncAsteriskGOD {
   struct PreprocMultGate : public PreprocGate<R> {
     // Secret shared product of inputs masks.
     TwoShare<R> mask_prod{};
-    TwoShare<R> ver{};
-    TwoShare<R> ver_prod{};
 
     PreprocMultGate() = default;
     PreprocMultGate(const TwoShare<R>& mask, const TwoShare<R>& mask_prod)
         : PreprocGate<R>(mask), mask_prod(mask_prod) {}
-    PreprocMultGate(const TwoShare<R>& mask, const TwoShare<R>& mask_prod, const R& mask_share_zero, const TwoShare<R>& ver, const TwoShare<R>& ver_prod)
-        : PreprocGate<R>(mask, mask_share_zero), mask_prod(mask_prod), ver(ver), ver_prod(ver_prod) {}
   };
 
   // Preprocessed data for the circuit.
