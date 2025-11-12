@@ -116,6 +116,7 @@ void benchmark(const bpo::variables_map& opts) {
     for (size_t i = 0; i < circ.gates_by_level.size(); ++i) {
         eval.evaluateGatesAtDepth(i);        
     }
+    
     eval.MACVerification();
 
     StatsPoint end(*network);

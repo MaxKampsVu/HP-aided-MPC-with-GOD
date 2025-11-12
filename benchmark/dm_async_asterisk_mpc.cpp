@@ -1,10 +1,9 @@
 #include <boost/program_options.hpp>
 
 #include "utils.h"
-#include "dm_offline_evaluator.h"
-#include "dm_online_evaluator.h"
+#include "dmgod_offline_evaluator.h"
 
-using namespace dmAsyncAsterisk;
+using namespace dmAsyncAsteriskGOD;
 namespace bpo = boost::program_options;
 
 Circuit<Field> generateCircuit(size_t gates_per_level, size_t depth) {
@@ -112,10 +111,11 @@ void benchmark(const bpo::variables_map& opts) {
     {
         OfflineEvaluator off_eval(nP, pid, security_param, network, network, circ, threads, seed);
         preproc = off_eval.run(input_pid_map);
+        std::cout << "I executed" << std::endl;
     }
 
     {
-        OnlineEvaluator eval(nP, pid, security_param, network, std::move(preproc), circ, threads, seed);
+        //OnlineEvaluator eval(nP, pid, security_param, network, std::move(preproc), circ, threads, seed);
 
         // eval.setRandomInputs();
         // for (size_t i = 0; i < circ.gates_by_level.size(); ++i) {
@@ -123,35 +123,35 @@ void benchmark(const bpo::variables_map& opts) {
         // }
         // eval.MACVerification();
         
-        auto res = eval.evaluateCircuit(input_map);
+        //auto res = eval.evaluateCircuit(input_map);
     }    
     
     StatsPoint end(*network);
     
-    auto rbench = end - start;
-    output_data["benchmarks"].push_back(rbench);
+    // auto rbench = end - start;
+    // output_data["benchmarks"].push_back(rbench);
 
-    size_t bytes_sent = 0;
-    for (const auto& val : rbench["communication"]) {
-        bytes_sent += val.get<int64_t>();
-    }
+    // size_t bytes_sent = 0;
+    // for (const auto& val : rbench["communication"]) {
+    //     bytes_sent += val.get<int64_t>();
+    // }
 
-    std::cout << "time: " << rbench["time"] << " ms\n";
-    std::cout << "sent: " << bytes_sent << " bytes\n";
+    // std::cout << "time: " << rbench["time"] << " ms\n";
+    // std::cout << "sent: " << bytes_sent << " bytes\n";
 
-    std::cout << std::endl;
-    output_data["stats"] = {{"peak_virtual_memory", peakVirtualMemory()},
-                            {"peak_resident_set_size", peakResidentSetSize()}};
+    // std::cout << std::endl;
+    // output_data["stats"] = {{"peak_virtual_memory", peakVirtualMemory()},
+    //                         {"peak_resident_set_size", peakResidentSetSize()}};
 
-    std::cout << "--- Statistics ---\n";
-    for (const auto& [key, value] : output_data["stats"].items()) {
-        std::cout << key << ": " << value << "\n";
-    }
-    std::cout << std::endl;
+    // std::cout << "--- Statistics ---\n";
+    // for (const auto& [key, value] : output_data["stats"].items()) {
+    //     std::cout << key << ": " << value << "\n";
+    // }
+    // std::cout << std::endl;
 
-    if (save_output) {
-        saveJson(output_data, save_file);
-    }
+    // if (save_output) {
+    //     saveJson(output_data, save_file);
+    // }
 }
 
 // clang-format off

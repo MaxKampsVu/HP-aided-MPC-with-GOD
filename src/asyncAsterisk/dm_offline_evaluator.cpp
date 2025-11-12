@@ -8,42 +8,57 @@ namespace dmAsyncAsterisk {
     chunk_size_(50000), inputToOPE(2)  
   {
     tpool_ = std::make_shared<ThreadPool>(threads);
+    // HP does the following 
     if (id_ == 0) {
+      // Creare recv channel for every Party
       for (size_t i = 1; i <= nP_; i++) {
         ot_.emplace_back(std::make_unique<OTProvider>(id_, i, network_ot_->getRecvChannel(i)));
         network_ot_->getRecvChannel(i)->flush();
       }
     }
+    // Parties do the following 
     else {
+      // Create send send channel to HP 
       ot_.emplace_back(std::make_unique<OTProvider>(id_, 0, network_ot_->getSendChannel(0)));
       network_ot_->getSendChannel(0)->flush();
     }
-  
+    
+    // HP does the following: 
     if (id_ == 0) {
       static ZZ_pContext ZZ_p_ctx;
       ZZ_p_ctx.save();
+      // Start a thread for every party 
       for (size_t pid = 1; pid <= nP_; pid++) {
         tpool_->enqueue([&, pid]() {
           ZZ_p_ctx.restore();
-          for (size_t count=0; count < 2; count++) {
+          // Start an OLE for all pairs of shares (x0, y0) for multiplication gates 
+          for (size_t count=0; count < 1; count++) {
             std::vector<Field> sharesVec;
             {
+              // Create a lock for each OT 
               std::unique_lock<std::mutex> lock(mtx_);
+              // Start the ot for x0 (and in the next iteration for y0)
               cv_start_ot_[count].wait(lock, [&]() { return start_ot_[count]; });
             }            
-            sharesVec.resize(inputToOPE[count].size());
+            sharesVec.resize(inputToOPE[count].size()); 
+            // Do the OLEs in chunks of chunk_size 
             for (size_t start = 0; start < inputToOPE[count].size(); start += chunk_size_) {
               size_t end = std::min(start + chunk_size_, inputToOPE[count].size());
               std::vector<Field> chunk(inputToOPE[count].begin() + start, inputToOPE[count].begin() + end);
+              // initiate ot, with ot provider pid and multiply my chunk with whatever ot provider sends 
               std::vector<Field> chunk_output = ot_[pid - 1]->multiplyRecv(chunk);
+              // Copy chunk_output to sharesVec 
               std::copy(chunk_output.begin(), chunk_output.end(), sharesVec.begin() + start);
             }
             {
               std::lock_guard<std::mutex> lock(mtx_);
+              // Record with whomst sharesVec was computed 
               offline_message_buffer_[count].push({pid, sharesVec});
             }
+            // TODO: Look up what this does 
             cv_.notify_one();
           }
+          //TODO: What does this do? 
           for(size_t count=0; count < 3; count++) {
             size_t total_comm;
             network_->recv(pid, &total_comm, sizeof(size_t));
@@ -209,23 +224,29 @@ namespace dmAsyncAsterisk {
     }
   }
 
+  // Start OLE to compute share1.p0 * sum(share1.p1, ..., share1.pn) + share1.p0 * sum(share1.p1, ..., share1.pn)
   void OfflineEvaluator::randomShareSecret(int nP, int pid, RandGenPool& rgen, const RepShare<Field>& share1, const RepShare<Field>& share2, 
     RepShare<Field>& prodShare, const std::vector<Field>& keySh, std::vector<Field>& inputToOPE) {
     auto share1_vals = share1.getValues();
     auto share2_vals = share2.getValues();
-    if (pid!=0) {      
+    if (pid!=0) {   
+      // Parties participate with their common share in OPE    
       inputToOPE.push_back(share1_vals[1]);
       inputToOPE.push_back(share2_vals[1]);
     }
+    // HP 
     else {
+      // Sum values for OPE  
       Field a = Field(0), b = Field(0);
       for (size_t i=0; i < nP; i++) {
         a += share1_vals[i];
         b += share2_vals[i];
       }
+      // Input for OPE is the sum of shares 
       inputToOPE.push_back(b);
       inputToOPE.push_back(a);
     }
+    // prodShare will be initialized after OLE 
     std::vector<Field> vals(share1_vals.size());
     prodShare.setValues(vals);
     prodShare.setKeySh(keySh);
@@ -316,11 +337,14 @@ namespace dmAsyncAsterisk {
   void OfflineEvaluator::multiply(const std::vector<Field>& vec_a, const std::vector<Field>& vec_b, std::vector<Field>& vec_c, 
     const std::vector<Field>& outputOfOPE, std::vector<Field>& buffer, size_t& idx_outputOfOPE, size_t& idx_buffer) {
     Field buffer_elem = Field(0);
+    // Multiply mt shares one by one a0 * b0 + a1 * b1 + ...
     for (size_t i=0; i < vec_a.size(); i++) {
       vec_c[i] = vec_a[i] * vec_b[i];
     }
+    // HP does 
     if (id_==0) {
       Field t = Field(0);
+      // Compute the cross terms I can compute e.g. a1*b2
       for (size_t i=0; i < nP_; i++) {
         for (size_t j=0; j < nP_; j++) {
           if (i!=j)
@@ -336,12 +360,14 @@ namespace dmAsyncAsterisk {
       vec_c[nP_-1] += t;
       buffer_elem += t;
     }
+    // Parties other then last party do 
     else if (id_<nP_) {
       Field c;
       randomizeZZp(rgen_.p0(), c, sizeof(Field));
       vec_c[0] += c;
     }
 
+    // Hp does 
     if (id_==0) {
       Field t = outputOfOPE[idx_outputOfOPE] + outputOfOPE[idx_outputOfOPE+1];
       idx_outputOfOPE += 2;
@@ -354,6 +380,7 @@ namespace dmAsyncAsterisk {
       vec_c[nP_-1] += t;
       buffer_elem += t;
     }
+    // Parties other then HP do 
     else if (id_<nP_) {
       vec_c[1] += outputOfOPE[idx_outputOfOPE] + outputOfOPE[idx_outputOfOPE+1];
       idx_outputOfOPE += 2;
@@ -361,12 +388,15 @@ namespace dmAsyncAsterisk {
       randomizeZZp(rgen_.p0(), c, sizeof(Field));
       vec_c[0] += c;
     }
+    // Last party does 
     else {
       vec_c[1] += outputOfOPE[idx_outputOfOPE] + outputOfOPE[idx_outputOfOPE+1];
       idx_outputOfOPE += 2;
     }
+    //HP does 
     if (id_==0)
       buffer.push_back(buffer_elem);
+    //other parties do 
     else if (id_==nP_)
       vec_c[0] += buffer[idx_buffer++];
   }
@@ -434,7 +464,9 @@ namespace dmAsyncAsterisk {
             randomShare(nP_, id_, rgen_, rand_mask, key_sh_, mask_share_zero, isOutputWire);
             randomShare(nP_, id_, rgen_, rand_ver, key_sh_, mask_share_zero, false);
             RepShare<Field> mask_product, ver_product;
+            // Create mask
             randomShareSecret(nP_, id_, rgen_, mask_in1, mask_in2, mask_product, key_sh_, inputToOPE[0]);
+            // TODO: what is rand_ver 
             randomShareSecret(nP_, id_, rgen_, rand_ver, mask_in2, ver_product, key_sh_, inputToOPE[0]);
             preproc_.gates[gate->out] = std::move(std::make_unique<PreprocMultGate<Field>> (rand_mask, mask_product, mask_share_zero, rand_ver, ver_product));
             break;
@@ -450,6 +482,7 @@ namespace dmAsyncAsterisk {
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
     
+    // Run the OPEs to obtain the product shares for the multiplication gates 
     runOPE(inputToOPE[0], outputOfOPE, 0);
 
     if (id_ != nP_) {
@@ -462,11 +495,13 @@ namespace dmAsyncAsterisk {
               auto valVec = pre_mul->mask_prod.getValues();
               auto mask_in1_val = preproc_.gates[g->in1]->mask.getValues();
               auto mask_in2_val = preproc_.gates[g->in2]->mask.getValues();
+              // Compute the mask on the ouput wire of the multiplication gate 
               multiply(mask_in1_val, mask_in2_val, valVec, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
               pre_mul->mask_prod.setValues(valVec);
               valVec = pre_mul->ver_prod.getValues();
               auto share1 = pre_mul->ver.getValues();
               auto share2 = preproc_.gates[g->in2]->mask.getValues();
+              // TODO: Again what is 
               multiply(share1, share2, valVec, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
               pre_mul->ver_prod.setValues(valVec);
               break;
@@ -815,7 +850,7 @@ namespace dmAsyncAsterisk {
   void OfflineEvaluator::setWireMasks(const std::unordered_map<wire_t,int>& input_pid_map) {      
     keyGen();
     prepareMaskValues(input_pid_map);
-    prepareMaskTags(); 
+    //prepareMaskTags(); 
   }
 
   bool OfflineEvaluator::TripleSacrifice() {
