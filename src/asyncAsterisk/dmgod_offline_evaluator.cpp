@@ -86,7 +86,7 @@ namespace dmAsyncAsteriskGOD {
     // TP 
     if(pid == 0) {      
       Field valSh;
-      randomizeZZp(rgen.p0(), valSh, sizeof(Field));
+      randomizeZZp(rgen.self(), valSh, sizeof(Field));
       share.setValue(valSh);
     }
     // Parties 
@@ -101,6 +101,10 @@ namespace dmAsyncAsteriskGOD {
     TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE) {
     auto share1_val = share1.getValue();
     auto share2_val = share2.getValue();
+    // Swap shares to compute cross terms in OPE 
+    if(pid == 0) {
+      std::swap(share1_val, share2_val);
+    }
     inputToOPE.push_back(share1_val);
     inputToOPE.push_back(share2_val);
     prodShare.setValue(Field(0));
@@ -183,9 +187,9 @@ namespace dmAsyncAsteriskGOD {
     }
   }
 
-  void OfflineEvaluator::multSS(const Field& share1, const Field& share2, Field& output, 
+  void OfflineEvaluator::multSS(const Field& share1_val, const Field& share2_val, Field& output_val, 
     const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE) {
-      output = share1 * share2 + outputOfOPE[idx_outputOfOPE] + outputOfOPE[idx_outputOfOPE+1];
+      output_val = share1_val * share2_val + outputOfOPE[idx_outputOfOPE] + outputOfOPE[idx_outputOfOPE+1];
       idx_outputOfOPE += 2;
   }
 
@@ -244,7 +248,6 @@ namespace dmAsyncAsteriskGOD {
             // Create the output wire mask share and initialize it later 
             preproc_.gates[gate->out] = std::make_unique<PreprocMultGate<Field>>();
             const auto* g = static_cast<FIn2Gate*>(gate.get());
-            // Get the input wires mask shares 
             const auto& mask_in1 = preproc_.gates[g->in1]->mask;
             const auto& mask_in2 = preproc_.gates[g->in2]->mask;
             TwoShare<Field> mask_out; 
@@ -252,9 +255,10 @@ namespace dmAsyncAsteriskGOD {
             bool isOutputWire = false;
             if (std::find(circ_.outputs.begin(), circ_.outputs.end(),g->out)!=circ_.outputs.end())
               isOutputWire = true;
-            
+            // Generate a random mask for the output wire 
             RandSS(id_, rgen_, mask_out, mask_share_zero, isOutputWire);
             TwoShare<Field> mask_product;
+            // Compute cross terms with HP for mask_product = mask_in1 * mask_in2  
             randomShareSecret(id_, rgen_, mask_in1, mask_in2, mask_product, inputToOPE[0]);
             preproc_.gates[gate->out] = std::move(std::make_unique<PreprocMultGate<Field>> (mask_out, mask_product));
             break;

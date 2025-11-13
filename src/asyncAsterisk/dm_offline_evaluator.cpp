@@ -501,7 +501,6 @@ namespace dmAsyncAsterisk {
               valVec = pre_mul->ver_prod.getValues();
               auto share1 = pre_mul->ver.getValues();
               auto share2 = preproc_.gates[g->in2]->mask.getValues();
-              // TODO: Again what is 
               multiply(share1, share2, valVec, outputOfOPE, buffer, idx_outputOfOPE, idx_buffer);
               pre_mul->ver_prod.setValues(valVec);
               break;

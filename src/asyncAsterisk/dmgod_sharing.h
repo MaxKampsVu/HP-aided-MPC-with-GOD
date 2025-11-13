@@ -26,6 +26,13 @@ namespace dmAsyncAsteriskGOD {
             return *this;
         }
 
+        TwoShare<R>& add(R val, int id) {
+            if (id==0) {
+                value_ += val;
+            }
+            return *this;
+        }
+
         friend TwoShare<R> operator+(TwoShare<R> lhs, const TwoShare<R>& rhs) {
             lhs += rhs;
             return lhs;
@@ -50,6 +57,16 @@ namespace dmAsyncAsteriskGOD {
         friend TwoShare<R> operator*(TwoShare<R> lhs, const R& rhs) {
             lhs.value_ *= rhs;
             return lhs;
+        }
+
+
+        friend TwoShare<R> operator+(TwoShare<R> lhs, const R& rhs) {
+            lhs.value_ + rhs;
+            return lhs;
+        }
+
+        friend TwoShare<R> operator+(const R& lhs, TwoShare<R> rhs) {
+            return rhs + lhs;
         }
  
         friend R computeTag(const TwoShare<R>& shareP, const TwoShare<R>& shareTP, R key) {

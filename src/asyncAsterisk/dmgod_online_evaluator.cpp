@@ -20,8 +20,8 @@ namespace dmAsyncAsteriskGOD {
                         std::unique_lock<std::mutex> lock(mtx_);
                         cv_start_recv_.wait(lock, [&]() { return start_recv_; });
                     }
-                    // TODO: remove the -1 to consider output gates!!!!!!!!!!
-                    for (size_t depth = 0; depth <= circ_.gates_by_level.size() - 1; depth++) {
+                    // Need one call less due to no MAC verification (< isntead of <=)
+                    for (size_t depth = 0; depth < circ_.gates_by_level.size(); depth++) {
                         size_t total_comm;
                         network_->recv(pid, &total_comm, sizeof(size_t));
                         std::vector<Field> online_comm_to_HP(total_comm);
@@ -102,22 +102,16 @@ namespace dmAsyncAsteriskGOD {
                     auto *pre_out = static_cast<PreprocMultGate<Field> *>(preproc_.gates[g->out].get());
                     q_val_[g->out] = 0;
 
-                    auto m_in1_val = preproc_.gates[g->in1]->mask.getValue();
-                    auto m_in2_val = preproc_.gates[g->in2]->mask.getValue();
-                    auto m_prod_val = pre_out->mask_prod.getValue();
-                    auto m_out_val = pre_out->mask.getValue();
+                    auto &m_in1 = preproc_.gates[g->in1]->mask;
+                    auto &m_in2 = preproc_.gates[g->in2]->mask;
+                    auto &m_prod = pre_out->mask_prod;
+                    auto &m_out = pre_out->mask;
 
-
-                    auto q_share = Field(0);
-
-                    if (id_==0) {
-                        auto q_share = wires_[g->in1] * wires_[g->in2] + m_prod_val + m_out_val - m_in1_val * wires_[g->in2] - m_in2_val * wires_[g->in1];    
-                    } else {
-                        auto q_share = m_prod_val + m_out_val - m_in1_val * wires_[g->in2] - m_in2_val * wires_[g->in1];    
-                    }                        
+                    auto q_share = m_prod + m_out - m_in1 * wires_[g->in2] - m_in2 * wires_[g->in1];    
+                    q_share.add(wires_[g->in1] * wires_[g->in2], id_);                    
                     
-                    //q_sh_[g->out] = q_share;
-                    mult_nonTP.push_back(q_share);
+                    q_sh_[g->out] = q_share;
+                    mult_nonTP.push_back(q_share.getValue());
                     break;
                 }
 
@@ -280,46 +274,43 @@ namespace dmAsyncAsteriskGOD {
 
     std::vector<Field> OnlineEvaluator::getOutputs() {
         std::vector<Field> outvals(circ_.outputs.size());
-        //if (circ_.outputs.empty())
+        if (circ_.outputs.empty())
             return outvals;
 
-        // if (id_ == 0) {
-        //     std::vector<Field> output_masks(circ_.outputs.size());
-        //     for (size_t i = 0; i < circ_.outputs.size(); ++i) {
-        //         auto wout = circ_.outputs[i];
-        //         Field outmask = Field(0);
-        //         std::vector<Field> valVec= preproc_.gates[wout]->mask.getValue();
-        //         for (size_t j=0; j<nP_; j++) 
-        //             outmask += valVec[j];
-        //         output_masks[i] = outmask;
-        //         outmask += preproc_.gates[wout]->mask_share_zero;                
-        //         outvals[i] = wires_[wout] - outmask;
-        //     }
-        //     std::vector<std::future<void>> send_t;
-        //     for (size_t i = 1; i <= nP_; ++i) {
-        //         send_t.push_back(tpool_->enqueue([&,i]() {
-        //             network_->send(i, output_masks.data(), output_masks.size() * sizeof(Field));
-        //             network_->getSendChannel(i)->flush();
-        //         }));
-        //     }
-        //     for(auto& t : send_t) {
-        //         if (t.valid()) {
-        //             t.wait();
-        //         }
-        //     }
-        //     return outvals;
-        // }
-        // else {
-        //     std::vector<Field> output_masks(circ_.outputs.size());
-        //     network_->recv(0, output_masks.data(), output_masks.size() * sizeof(Field));
-        //     for (size_t i = 0; i < circ_.outputs.size(); ++i) {
-        //         Field outmask = output_masks[i];
-        //         auto wout = circ_.outputs[i];
-        //         outmask += preproc_.gates[wout]->mask.getValue()[1];
-        //         outvals[i] = wires_[wout] - outmask;
-        //     }
-        //     return outvals;
-        // }
+        // HP sends there out mask to all other parties 
+        if (id_ == 0) {
+            std::vector<Field> output_masks(circ_.outputs.size());
+            for (size_t i = 0; i < circ_.outputs.size(); ++i) {
+                Field outmask = output_masks[i];
+                auto wout = circ_.outputs[i];
+                outmask = preproc_.gates[wout]->mask.getValue();
+                output_masks[i] = outmask;                
+            }
+            std::vector<std::future<void>> send_t;
+            for (size_t i = 1; i <= nP_; ++i) {
+                send_t.push_back(tpool_->enqueue([&,i]() {
+                    network_->send(i, output_masks.data(), output_masks.size() * sizeof(Field));
+                    network_->getSendChannel(i)->flush();
+                }));
+            }
+            for(auto& t : send_t) {
+                if (t.valid()) {
+                    t.wait();
+                }
+            }
+            return outvals;
+        }
+        else {
+            std::vector<Field> output_masks(circ_.outputs.size());
+            network_->recv(0, output_masks.data(), output_masks.size() * sizeof(Field));
+            for (size_t i = 0; i < circ_.outputs.size(); ++i) {
+                Field outmask = output_masks[i];
+                auto wout = circ_.outputs[i];
+                outmask += preproc_.gates[wout]->mask.getValue();
+                outvals[i] = wires_[wout] - outmask;
+            }
+            return outvals;
+        }
     }
 
     std::vector<Field> OnlineEvaluator::evaluateCircuit(const std::unordered_map<wire_t, Field> &inputs) {
