@@ -33,12 +33,11 @@ namespace dmAsyncAsteriskGOD {
           ZZ_p_ctx.restore();
           // TODO: do OLE on tags later  
           // for (size_t count=0; count < 2; count++) {
-          for (size_t count=0; count < 1; count++) {
+          for (size_t count=0; count < 2; count++) {
             std::vector<Field> sharesVec;
             {
               // Create a lock for each OT 
               std::unique_lock<std::mutex> lock(mtx_);
-              // Start the ot for x0 (and in the next iteration for y0)
               cv_start_ot_[count].wait(lock, [&]() { return start_ot_[count]; });
             }            
             sharesVec.resize(inputToOPE[count].size()); 
@@ -46,17 +45,13 @@ namespace dmAsyncAsteriskGOD {
             for (size_t start = 0; start < inputToOPE[count].size(); start += chunk_size_) {
               size_t end = std::min(start + chunk_size_, inputToOPE[count].size());
               std::vector<Field> chunk(inputToOPE[count].begin() + start, inputToOPE[count].begin() + end);
-              // initiate ot, with ot provider pid and multiply my chunk with whatever ot provider sends 
               std::vector<Field> chunk_output = ot_[pid - 1]->multiplyRecv(chunk);
-              // Copy chunk_output to sharesVec 
               std::copy(chunk_output.begin(), chunk_output.end(), sharesVec.begin() + start);
             }
             {
-              std::lock_guard<std::mutex> lock(mtx_);
-              // Record with whomst sharesVec was computed 
+              std::lock_guard<std::mutex> lock(mtx_); 
               offline_message_buffer_[count].push({pid, sharesVec});
             }
-            // I guess notify different waiting thread to aquire lock  
             cv_.notify_one();
           }
         });
@@ -70,15 +65,8 @@ namespace dmAsyncAsteriskGOD {
 
   void OfflineEvaluator::keyGen()  {
     if(id_ == 0) {
-      key_sh_.resize(nP_);
-      for(size_t i = 1; i <= nP_; i++) {
-        randomizeZZp(rgen_.pi(i), key_sh_[i-1], sizeof(Field));
-      }
-    }
-    else {
-      key_sh_.resize(2);
-      randomizeZZp(rgen_.p0(), key_sh_[0], sizeof(Field));
-      randomizeZZp(rgen_.all_minus_0(), key_sh_[1], sizeof(Field));
+      randomizeZZp(rgen_.p0(), key_, sizeof(Field));
+      preproc_.setTPKey(key_);
     }
   }
 
@@ -303,11 +291,114 @@ namespace dmAsyncAsteriskGOD {
     outputOfOPE.clear();
     outputOfOPE.shrink_to_fit();
   }
+
+  void OfflineEvaluator::prepareMaskMACs() {
+    for (const auto& level : circ_.gates_by_level) {
+      for (const auto& gate : level) {
+        switch (gate->type) {
+          case GateType::kInp: {
+            if (id_!=0) {      
+              auto *pre_input = static_cast<PreprocInput<Field> *>(preproc_.gates[gate->out].get());
+              auto mask = pre_input->mask.getValue();
+              inputToOPE[1].push_back(mask);
+            }
+            else {
+              inputToOPE[1].push_back(key_);
+            }
+            break;
+          }
+
+          case GateType::kMul: {
+            if (id_!=0) {     
+              auto *pre_gate = preproc_.gates[gate->out].get();
+              auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
+              auto mask = pre_gate->mask.getValue();
+              auto mask_prod = pre_mul->mask_prod.getValue(); 
+              inputToOPE[1].push_back(mask);
+              inputToOPE[1].push_back(mask_prod);
+            }
+            else {
+              inputToOPE[1].push_back(key_);
+              inputToOPE[1].push_back(key_);
+            }
+            break;
+          }
+
+          default: {
+            break;
+          }
+        }
+      }
+    }
+
+    std::vector<Field> outputOfOPE;
+    size_t idx_outputOfOPE = 0;
+
+    runOPE(inputToOPE[1], outputOfOPE, 1);
+
+    if (id_ != nP_) {
+      for (const auto& level : circ_.gates_by_level) {
+        for (const auto& gate : level) {
+          switch (gate->type) {
+            case GateType::kInp: {
+              auto *pre_input = static_cast<PreprocInput<Field> *>(preproc_.gates[gate->out].get());
+              pre_input->mask.setMACComponent(outputOfOPE[idx_outputOfOPE++]);                
+              break;
+            }
+
+            case GateType::kAdd: {
+              const auto* g = static_cast<FIn2Gate*>(gate.get());
+              const auto& mask_in1 = preproc_.gates[g->in1]->mask;
+              const auto& mask_in2 = preproc_.gates[g->in2]->mask;
+              preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 + mask_in2));    
+              break;
+            }
+  
+            case GateType::kConstAdd: {
+              const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
+              const auto& mask = preproc_.gates[g->in]->mask + g->cval;
+              preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
+              break;
+            }
+  
+            case GateType::kConstMul: {
+              const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
+              const auto& mask = preproc_.gates[g->in]->mask * g->cval;
+              preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
+              break;
+            }
+  
+            case GateType::kSub: {
+              const auto* g = static_cast<FIn2Gate*>(gate.get());
+              const auto& mask_in1 = preproc_.gates[g->in1]->mask;
+              const auto& mask_in2 = preproc_.gates[g->in2]->mask;
+              preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 - mask_in2));
+              break;
+            }
+
+            case GateType::kMul: {
+              auto *pre_gate = preproc_.gates[gate->out].get();
+              auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
+              pre_gate->mask.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
+              pre_mul->mask_prod.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
+              break;
+            }
+    
+            default: {
+              break;
+            }
+          }
+        }
+      }
+      outputOfOPE.clear();
+      outputOfOPE.shrink_to_fit();      
+    }
+  }
     
   void OfflineEvaluator::setWireMasks(const std::unordered_map<wire_t,int>& input_pid_map) {      
     keyGen();
     prepareMaskValues(input_pid_map);
-    //prepareMaskTags(); 
+    prepareMaskMACs(); 
   }
 
   PreprocCircuit<Field> OfflineEvaluator::run(const std::unordered_map<wire_t, int>& input_pid_map) {

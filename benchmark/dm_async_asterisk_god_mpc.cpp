@@ -1,10 +1,10 @@
 #include <boost/program_options.hpp>
 
 #include "utils.h"
-#include "dm_offline_evaluator.h"
-#include "dm_online_evaluator.h"
+#include "dmgod_offline_evaluator.h"
+#include "dmgod_online_evaluator.h"
 
-using namespace dmAsyncAsterisk;
+using namespace dmAsyncAsteriskGOD;
 namespace bpo = boost::program_options;
 
 Circuit<Field> generateCircuit(size_t gates_per_level, size_t depth) {
@@ -124,6 +124,7 @@ void benchmark(const bpo::variables_map& opts) {
         // eval.MACVerification();
         
         auto res = eval.evaluateCircuit(input_map);
+        std::cout << "Finished online phase" << std::endl;
     }    
     
     StatsPoint end(*network);

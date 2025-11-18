@@ -42,7 +42,7 @@ namespace dmAsyncAsteriskGOD {
         void setInputs(const std::unordered_map<wire_t, Field> &inputs);
         void setRandomInputs();
 
-        void evaluateGatesAtDepthPartySend(size_t depth, std::vector<Field> &mult_nonTP);
+        void evaluateGatesAtDepthPartySend(size_t depth, std::vector<Field> &mult_nonTP, std::vector<Field> &mac_components);
         void evaluateGatesAtDepthPartyRecv(size_t depth, std::vector<Field> mult_all);
         void evaluateGatesAtDepth(size_t depth);
         bool MACVerification();

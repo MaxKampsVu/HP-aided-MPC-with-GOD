@@ -41,9 +41,14 @@ namespace dmAsyncAsteriskGOD {
   template <class R>
   struct PreprocCircuit {
     std::vector<preprocg_ptr_t<R>> gates;
+    R tp_key;
 
     PreprocCircuit() = default;
-    PreprocCircuit(size_t num_gates) : gates(num_gates) {}
+    PreprocCircuit(size_t num_gates) : gates(num_gates){}
+
+    void setTPKey(Field key) {
+      tp_key = key;
+    }
   };
   
 };  // namespace dmAsyncAsterisksGOD

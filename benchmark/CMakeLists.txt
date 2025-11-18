@@ -14,6 +14,7 @@ add_benchmark(hm_async_asterisk_mpc)
 add_benchmark(dm_async_asterisk_offline)
 add_benchmark(dm_async_asterisk_online)
 add_benchmark(dm_async_asterisk_mpc)
+add_benchmark(dm_async_asterisk_god_mpc)
 
 add_custom_target(benchmarks)
 add_dependencies(benchmarks ${benchbin} create_ot_data)

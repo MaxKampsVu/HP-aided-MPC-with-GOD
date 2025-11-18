@@ -47,4 +47,31 @@ namespace utils {
         }
         return poly;
     }
+
+uint64_t to_uint64(Field a) {
+    ZZ z = a.LoopHole();  
+    return conv<uint64_t>(z); 
+}
+
+std::vector<Field> hashFields(const std::vector<Field>& fields) {
+    Hash hash;
+
+    std::vector<uint64_t> input_vec(fields.size());
+    for (size_t i = 0; i < fields.size(); ++i)
+        input_vec[i] = to_uint64(fields[i]);
+
+    const char* data_ptr = reinterpret_cast<const char*>(input_vec.data());
+    size_t byte_len = input_vec.size() * sizeof(uint64_t);
+    hash.put(data_ptr, static_cast<int>(byte_len)); 
+    
+    uint8_t dig_bytes[Hash::DIGEST_SIZE]; 
+    hash.digest(dig_bytes); 
+    
+
+    std::vector<uint64_t> result(Hash::DIGEST_SIZE / sizeof(uint64_t));    
+    std::memcpy(result.data(), dig_bytes, Hash::DIGEST_SIZE);
+    
+    return std::vector<Field> {Field(result[0]), Field(result[1]), Field(result[2]), Field(result[3])};
+}
+
 } // namespace utils

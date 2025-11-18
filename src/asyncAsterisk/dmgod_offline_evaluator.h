@@ -22,7 +22,7 @@ namespace dmAsyncAsteriskGOD {
         int nP_;  
         int id_;
         int security_param_;
-        std::vector<Field> key_sh_;
+        Field key_;
         RandGenPool rgen_;
         std::shared_ptr<NetIOMP> network_;
         std::shared_ptr<NetIOMP> network_ot_;
@@ -53,7 +53,7 @@ namespace dmAsyncAsteriskGOD {
         void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
         void multSS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
         void prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map);
-        // void prepareMaskTags();
+        void prepareMaskMACs();
         void setWireMasks(const std::unordered_map<wire_t, int>& input_pid_map);
         /*
          * input_pid_map is map for input dealers to process ids to give them masks of their inputs in the clear  

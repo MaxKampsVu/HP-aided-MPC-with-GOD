@@ -18,7 +18,7 @@ endmacro()
 # add_testfile(hm_online)
 # add_testfile(dm_sharing)
 # add_testfile(dm_offline)
-# add_testfile(dm_online)
+add_testfile(dm_online)
 add_testfile(dmgod_online)
 
 add_custom_target(tests)

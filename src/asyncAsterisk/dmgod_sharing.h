@@ -8,23 +8,17 @@ namespace dmAsyncAsteriskGOD {
     template <class R>
     class TwoShare {
         R value_;
-        R tag_;
+        R mac_component_;
 
         public:
         TwoShare() = default;
-        explicit TwoShare(R value, R tag) : value_{value}, tag_{tag} {}
+        explicit TwoShare(R value) : value_{value} {}
 
         R getValue() const { return value_; }
-        R getTag() { return tag_; }
+        R getMACComponent() { return mac_component_; }
 
         void setValue(R value) { value_ = value; }
-        void setTag(R tag) { tag_ = tag; }
-
-        TwoShare<R>& operator+=(const TwoShare<R>& rhs) {
-            value_ += rhs.value_;
-            tag_ += rhs.tag_;
-            return *this;
-        }
+        void setMACComponent(R mac_component) { mac_component_ = mac_component; }
 
         TwoShare<R>& add(R val, int id) {
             if (id==0) {
@@ -33,9 +27,10 @@ namespace dmAsyncAsteriskGOD {
             return *this;
         }
 
-        friend TwoShare<R> operator+(TwoShare<R> lhs, const TwoShare<R>& rhs) {
-            lhs += rhs;
-            return lhs;
+        TwoShare<R>& operator+=(const TwoShare<R>& rhs) {
+            value_ += rhs.value_;
+            mac_component_ += rhs.mac_component_;
+            return *this;
         }
 
         TwoShare<R>& operator-=(const TwoShare<R>& rhs) {
@@ -43,39 +38,34 @@ namespace dmAsyncAsteriskGOD {
             return *this;
         }
 
+        friend TwoShare<R> operator+(TwoShare<R> lhs, const TwoShare<R>& rhs) {
+            lhs += rhs;
+            return lhs;
+        }
+
         friend TwoShare<R> operator-(TwoShare<R> lhs, const TwoShare<R>& rhs) {
             lhs -= rhs;
             return lhs;
         }
 
-        TwoShare<R>& operator*=(const TwoShare<R>& rhs) {
-            value_ += rhs.value_;
-            tag_ += rhs.tag_;
-            return *this;
+        friend TwoShare<R> operator+(TwoShare<R> lhs, const R& rhs) {
+            lhs.value_ += rhs;
+            lhs.mac_component_ += rhs;
+            return lhs;
         }
 
         friend TwoShare<R> operator*(TwoShare<R> lhs, const R& rhs) {
             lhs.value_ *= rhs;
+            lhs.mac_component_ *= rhs;
             return lhs;
         }
 
-
-        friend TwoShare<R> operator+(TwoShare<R> lhs, const R& rhs) {
-            lhs.value_ + rhs;
-            return lhs;
-        }
-
-        friend TwoShare<R> operator+(const R& lhs, TwoShare<R> rhs) {
-            return rhs + lhs;
-        }
- 
-        friend R computeTag(const TwoShare<R>& shareP, const TwoShare<R>& shareTP, R key) {
-            return shareP.getValue() * key - shareTP.getValue();
-        }
-
-        friend R computeTag(const R& sharePvalue, const TwoShare<R>& shareTP, R key) {
-            return sharePvalue * key - shareTP.getValue();
-        }
     };
 
+    template <typename R>
+    void computeMACs(R key, std::vector<R>& tp_mac_components, const std::vector<R>& p_shares) {
+        for (int i = 0; i < tp_mac_components.size(); i++) {
+            tp_mac_components[i] = key * p_shares[i] - tp_mac_components[i];
+        }
+    }
 }; // namespace dmAsyncAsteriskGOD
