@@ -5,12 +5,12 @@ namespace asyncAsterisk {
 
   OTProviderHA::OTProviderHA(int my_id, int other_id, NetIO* io) : ios_{io} {
     if (my_id == 0) {
-      std::string filename = "./ot_data/s" + std::to_string(1) + "_r" + std::to_string(my_id) + "_receiver.bin";
-      ot_ = std::make_unique<FerretCOT<NetIO>>(BOB, 1, ios_.data(), false, true, ferret_b13, filename);
+      std::string filename = "./ot_data/s" + std::to_string(other_id) + "_r" + std::to_string(my_id) + "_receiver.bin";
+      ot_ = std::make_unique<FerretCOT<NetIO>>(BOB, 1, ios_.data(), true, true, ferret_b13, filename);
     }
     else {
-      std::string filename = "./ot_data/s" + std::to_string(1) + "_r" + std::to_string(0) + "_sender.bin";
-      ot_ = std::make_unique<FerretCOT<NetIO>>(ALICE, 1, ios_.data(), false, true, ferret_b13, filename);
+      std::string filename = "./ot_data/s" + std::to_string(my_id) + "_r" + std::to_string(other_id) + "_sender.bin";
+      ot_ = std::make_unique<FerretCOT<NetIO>>(ALICE, 1, ios_.data(), true, true, ferret_b13, filename);
     }
   }
 
@@ -37,7 +37,7 @@ namespace asyncAsterisk {
     auto* data = new emp::block[length];    
     ot_->send_cot(data, length);
     emp::block s;
-    ot_->prg.random_block(&s, 1); // All parties generate same random s with prg all_minus_0
+    ot_->prg.random_block(&s, 1);
     ios_[0]->send_block(&s, 1);
     ot_->mitccrh.setS(s);
     ios_[0]->flush();
@@ -45,22 +45,18 @@ namespace asyncAsterisk {
     block pad[2 * ot_bsize];
     std::vector<Field> upad(2 * length);
     auto* tpad = reinterpret_cast<uint64_t*>(pad);
-
     for (size_t i = 0; i < length; i += ot_bsize) {
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         pad[2 * (j - i)] = data[j];
         pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta;
       }
       ot_->mitccrh.hash<ot_bsize, 2>(pad);
-      //std::cout << " pad " <<  pad[0] << std::endl;
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         upad[2 * j] = Field(tpad[4 * (j - i)]) + data0[j];
         upad[2 * j + 1] = Field(tpad[4 * (j - i) + 2]) + data1[j];
         
       }
     }
-
-    ot_dig = hashFields(upad);
     sendFieldElements(upad.data(), 2 * sizeof(Field) * length);
     delete[] data;
   }
@@ -75,7 +71,6 @@ namespace asyncAsterisk {
     block pad[ot_bsize];
     std::vector<Field> res(2 * length);
     recvFieldElements(res.data(), 2 * sizeof(Field) * length);
-    ot_dig = hashFields(res);
     auto* tpad = reinterpret_cast<uint64_t*>(pad);
     for (size_t i = 0; i < length; i += ot_bsize) {
       memcpy(pad, data + i, std::min(ot_bsize, length - i) * sizeof(block));
@@ -88,7 +83,7 @@ namespace asyncAsterisk {
   }
 
   std::vector<Field> OTProviderHA::multiplySend(const std::vector<Field>& inputs, PRG& prg, fieldDig& ot_dig) {
-    size_t num_bits = sizeof(Field) * 8;
+      size_t num_bits = sizeof(Field) * 8;
     size_t num_blocks = num_bits * inputs.size();
   
     std::vector<Field> vrand(num_blocks);
@@ -111,8 +106,9 @@ namespace asyncAsterisk {
         idx++;
       }
     }
-    
+
     send(inp_0.data(), inp_1.data(), num_blocks, ot_dig);
+
 
     return shares;
   }
@@ -172,7 +168,7 @@ namespace asyncAsterisk {
   }
       
   std::vector<Field> OTProviderHA::multiplyRecv(const std::vector<Field>& inputs, fieldDig& ot_dig) {
-    size_t num_bits = sizeof(Field) * 8;
+  size_t num_bits = sizeof(Field) * 8;
     size_t num_blocks = num_bits * inputs.size();
 
     std::unique_ptr<bool[]> choice_bits(new bool[num_blocks]);
@@ -187,6 +183,9 @@ namespace asyncAsterisk {
 
     std::vector<Field> recv_blocks(num_blocks);
     recv(recv_blocks.data(), choice_bits.get(), num_blocks, ot_dig);
+
+    auto dig = std::vector<Field>{Field(1), Field(2), Field(3), Field(4)};
+    auto empty = std::vector<Field>(0); 
 
     std::vector<Field> shares(inputs.size(), Field(0));
     idx = 0;

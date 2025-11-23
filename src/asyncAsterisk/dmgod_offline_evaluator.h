@@ -28,6 +28,7 @@ namespace dmAsyncAsteriskGOD {
         std::shared_ptr<NetIOMP> network_ot_;
         LevelOrderedCircuit circ_;
         std::shared_ptr<ThreadPool> tpool_;
+        std::shared_ptr<ThreadPool> tpool_offline_;
         PreprocCircuit<Field> preproc_;
         std::vector<std::unique_ptr<OTProviderHA>> ot_;
         std::unordered_map<size_t, std::queue<Offline_Message>> offline_message_buffer_;
@@ -44,7 +45,7 @@ namespace dmAsyncAsteriskGOD {
 
 
 
-        void setupASync();
+        void setupASync(int threads);
         void setupSync();
 
         void runOPEASync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
@@ -56,10 +57,12 @@ namespace dmAsyncAsteriskGOD {
         ~OfflineEvaluator();
 
         void keyGen();
-        static void RandSS(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire);
+        static void randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire);
         static void randomShareSecret(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
             TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
-        static void RandSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
+        static void randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
+        void sendDigest();
+        bool digestCheck(fieldDig ot_dig);
         void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
         void multSS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
         void prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map);
