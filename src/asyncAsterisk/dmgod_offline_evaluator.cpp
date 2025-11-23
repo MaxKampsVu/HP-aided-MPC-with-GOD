@@ -5,8 +5,12 @@ namespace dmAsyncAsteriskGOD {
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed) 
     : nP_(nP), id_(id), security_param_(security_param), rgen_(id, nP, seed), network_(std::move(network1)), 
     network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(2, false), 
-    chunk_size_(50000), inputToOPE(2), run_async_(true)
+    chunk_size_(50000), inputToOPE(2), run_async_(false)
   {
+    run_async_ ? setupASync(threads) : setupSync();
+  }
+
+  void OfflineEvaluator::setupASync(int threads) {
     tpool_ = std::make_shared<ThreadPool>(threads);
     if (id_ == 0) {
       // Create OT instance for each Party
@@ -56,8 +60,7 @@ namespace dmAsyncAsteriskGOD {
         });
       }
     } 
-  }
-
+  } 
 
   void OfflineEvaluator::setupSync() {
     tpool_ = std::make_shared<ThreadPool>(1);
@@ -271,38 +274,39 @@ namespace dmAsyncAsteriskGOD {
 
 
   void OfflineEvaluator::runOPESync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count) {
-    // constexpr size_t honest_abort_message_length = 4;
-    // if(id_ != 0) {
-    //   for (size_t start = 0; start < inputToOPE.size(); start += chunk_size_) {
-    //       size_t end = std::min(start + chunk_size_, inputToOPE.size());
-    //       std::vector<Field> chunk(inputToOPE.begin() + start, inputToOPE.begin() + end);
-    //       fieldDig ot_dig;
-    //       // Complete OPE and compute digest of my message to HP 
-    //       if(id_ == SYNC_SENDER_PID_) {
-
-    //       }
-          
-    //       auto chunk_output = ot_[0]->multiplySend(chunk, rgen_.all_minus_0(), ot_dig);
-    //       outputOfOPE.insert(outputOfOPE.end(), chunk_output.begin(), chunk_output.end());
-    //   }
-    // } 
-    // else {
-    //   // HP completes OPE with parties by proceding with first message it receives  
-    //   {
-    //     std::lock_guard<std::mutex> lock(mtx_);
-    //     start_ot_[count] = true;
-    //   }
-    //   cv_start_ot_[count].notify_one();
-    //   {
-    //     std::unique_lock<std::mutex> lock(mtx_);
-    //     cv_.wait(lock, [&]() { return offline_message_buffer_[count].size() >= 1; });
-    //   }
-    //   Offline_Message OPE_res = offline_message_buffer_[count].front();
-    //   auto receiver_pid = OPE_res.receiver_id;
-    //   std::queue<Offline_Message> empty;
-    //   std::swap(offline_message_buffer_[count], empty);
-    //   outputOfOPE = OPE_res.data;
-    // }
+    constexpr size_t honest_abort_message_length = 4;
+    if(id_ != 0) {
+      for (size_t start = 0; start < inputToOPE.size(); start += chunk_size_) {
+          size_t end = std::min(start + chunk_size_, inputToOPE.size());
+          std::vector<Field> chunk(inputToOPE.begin() + start, inputToOPE.begin() + end);
+          fieldDig ot_dig;
+          // Complete OPE and compute digest of my message to HP 
+          if(id_ == SYNC_SENDER_PID_) {
+            auto chunk_output = ot_[0]->multiplySend(chunk, rgen_.all_minus_0(), ot_dig);
+            outputOfOPE.insert(outputOfOPE.end(), chunk_output.begin(), chunk_output.end());
+          } else {
+            auto chunk_output = ot_[0]->multiplySendOffline(chunk, rgen_.all_minus_0(), ot_dig);
+            outputOfOPE.insert(outputOfOPE.end(), chunk_output.begin(), chunk_output.end());
+          }
+      }
+    } 
+    else {
+      // HP completes OPE with parties by proceding with first message it receives  
+      {
+        std::lock_guard<std::mutex> lock(mtx_);
+        start_ot_[count] = true;
+      }
+      cv_start_ot_[count].notify_one();
+      {
+        std::unique_lock<std::mutex> lock(mtx_);
+        cv_.wait(lock, [&]() { return offline_message_buffer_[count].size() >= 1; });
+      }
+      Offline_Message OPE_res = offline_message_buffer_[count].front();
+      auto receiver_pid = OPE_res.receiver_id;
+      std::queue<Offline_Message> empty;
+      std::swap(offline_message_buffer_[count], empty);
+      outputOfOPE = OPE_res.data;
+    }
   }
 
   void OfflineEvaluator::multSS(const Field& share1_val, const Field& share2_val, Field& output_val, 
