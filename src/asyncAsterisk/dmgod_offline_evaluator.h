@@ -3,7 +3,7 @@
 #include <emp-tool/emp-tool.h>
 #include "dmgod_preproc.h"
 #include "rand_gen_pool.h"
-#include "ot_provider.h"
+#include "ot_provider_ha.h"
 #include "netmp.h"
 #include "types.h"
 #include "circuit.h"
@@ -29,22 +29,32 @@ namespace dmAsyncAsteriskGOD {
         LevelOrderedCircuit circ_;
         std::shared_ptr<ThreadPool> tpool_;
         PreprocCircuit<Field> preproc_;
-        std::vector<std::unique_ptr<OTProvider>> ot_;
+        std::vector<std::unique_ptr<OTProviderHA>> ot_;
         std::unordered_map<size_t, std::queue<Offline_Message>> offline_message_buffer_;
+        std::vector<std::pair<std::vector<Field>, size_t>> chunk_ot_dig_pid_vec;
         std::size_t chunk_size_;
         std::mutex mtx_;
         std::condition_variable cv_;
         std::array<std::condition_variable, 2> cv_start_ot_;
         std::vector<bool> start_ot_;
         std::vector<std::vector<Field>> inputToOPE;
+        bool run_async_;
+        const size_t SYNC_SENDER_PID_ = 1;
+
+
+
+
+        void setupASync();
+        void setupSync();
+
+        void runOPEASync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
+        void runOPESync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
 
         public:
         OfflineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network1, std::shared_ptr<NetIOMP> network2, 
             LevelOrderedCircuit circ, int threads, uint64_t seed = 200);
         ~OfflineEvaluator();
 
-        // static PreprocCircuit<Field> dummy(int nP, int id, const LevelOrderedCircuit& circ, 
-        //     const std::unordered_map<wire_t, int>& input_pid_map, PRG& prg);
         void keyGen();
         static void RandSS(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire);
         static void randomShareSecret(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
@@ -55,9 +65,6 @@ namespace dmAsyncAsteriskGOD {
         void prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map);
         void prepareMaskMACs();
         void setWireMasks(const std::unordered_map<wire_t, int>& input_pid_map);
-        /*
-         * input_pid_map is map for input dealers to process ids to give them masks of their inputs in the clear  
-         */
         PreprocCircuit<Field> run(const std::unordered_map<wire_t, int>& input_pid_map);
     };
 }; // namespace dmAsyncAsteriskGOD

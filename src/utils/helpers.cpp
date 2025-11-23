@@ -53,7 +53,7 @@ uint64_t to_uint64(Field a) {
     return conv<uint64_t>(z); 
 }
 
-std::vector<Field> hashFields(const std::vector<Field>& fields) {
+fieldDig hashFields(const std::vector<Field>& fields) {
     Hash hash;
 
     std::vector<uint64_t> input_vec(fields.size());
@@ -67,11 +67,22 @@ std::vector<Field> hashFields(const std::vector<Field>& fields) {
     uint8_t dig_bytes[Hash::DIGEST_SIZE]; 
     hash.digest(dig_bytes); 
     
+    std::vector<Field> result(4);
+    for (size_t i = 0; i < 4; ++i) {
+        uint64_t val;
+        std::memcpy(&val, dig_bytes + i * sizeof(uint64_t), sizeof(uint64_t));
+        result[i] = Field(val);
+    }
 
-    std::vector<uint64_t> result(Hash::DIGEST_SIZE / sizeof(uint64_t));    
-    std::memcpy(result.data(), dig_bytes, Hash::DIGEST_SIZE);
-    
-    return std::vector<Field> {Field(result[0]), Field(result[1]), Field(result[2]), Field(result[3])};
+    return result;
+}
+
+void appendFieldDig(std::vector<Field>& vec, fieldDig& dig) {
+        if (vec.size() < dig.size()) {
+        throw std::runtime_error("vector too small to overwrite last 4 elements");
+    }
+
+    std::copy(dig.begin(), dig.end(), vec.end() - 4);
 }
 
 } // namespace utils

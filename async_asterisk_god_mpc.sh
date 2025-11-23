@@ -20,8 +20,8 @@ then
 	echo "Running Asynchronous Asterisk with GOD MPC (Honest Majority)"
 	echo "*****************************************************************"
     pkill -f "hm_async_asterisk_mpc"
-	run_app=./benchmarks/hm_async_asterisk_mpc
-	dir=~/benchmark_data/hm_async_asterisk_mpc
+	run_app=./benchmarks/dm_async_asterisk_god_mpc
+	dir=~/benchmark_data/dm_async_asterisk_god_mpc
 else
 	echo "Running Asynchronous Asterisk with GOD MPC (Dishonest Majority)"
 	echo "*****************************************************************"

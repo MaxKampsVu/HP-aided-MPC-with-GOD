@@ -20,7 +20,6 @@ namespace dmAsyncAsteriskGOD {
                         std::unique_lock<std::mutex> lock(mtx_);
                         cv_start_recv_.wait(lock, [&]() { return start_recv_; });
                     }
-                    // Need one call less due to no MAC verification (< isntead of <=)
                     for (size_t depth = 0; depth < circ_.gates_by_level.size(); depth++) {
                         size_t total_comm;
                         network_->recv(pid, &total_comm, sizeof(size_t));
@@ -230,6 +229,7 @@ namespace dmAsyncAsteriskGOD {
             for (size_t i = 0; i < mult_num; i++) {
                 online_comm_to_HP[i] = mult_nonTP[i];
             }
+            
             // Write hash of tags 
             auto dig = hashFields(mac_components);
             for (size_t i = mult_num; i < total_comm_to_HP; i++) {
@@ -294,10 +294,10 @@ namespace dmAsyncAsteriskGOD {
                     tp_macs[i] =  preproc_.tp_key * message.data[i] - mac_components[i];
                 }
                 // Hash the macs 
-                auto tp_hash = hashFields(tp_macs);
+                auto tp_dig = hashFields(tp_macs);
 
                 // Compare hash to last 4 field elements of the message by the party (which is the hash of the parties tags)
-                if(!std::equal(tp_hash.begin(), tp_hash.end(), message.data.end() - 4)) {
+                if(!std::equal(tp_dig.begin(), tp_dig.end(), message.data.end() - 4)) {
                     std::cout << "Received inconsistent shares!" << std::endl;
                 }
             }
