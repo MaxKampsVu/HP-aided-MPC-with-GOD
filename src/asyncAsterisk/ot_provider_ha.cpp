@@ -33,6 +33,20 @@ namespace asyncAsterisk {
     }
   }
 
+  template <typename T>
+void print_vector(const std::vector<T>& v) {
+    std::cout << "[";
+
+    for (size_t i = 0; i < v.size(); ++i) {
+        std::cout << v[i];
+        if (i + 1 < v.size())
+            std::cout << ", ";
+    }
+
+    std::cout << "]\n";
+}
+
+
   void OTProviderHA::send(const Field* data0, const Field* data1, size_t length, fieldDig& ot_dig) {
     auto* data = new emp::block[length];    
     ot_->send_cot(data, length);
@@ -57,6 +71,7 @@ namespace asyncAsterisk {
         
       }
     }
+
     sendFieldElements(upad.data(), 2 * sizeof(Field) * length);
     delete[] data;
   }
@@ -106,10 +121,9 @@ namespace asyncAsterisk {
         idx++;
       }
     }
+    ot_dig = {Field(0), Field(0), Field(0), Field(0)};
 
     send(inp_0.data(), inp_1.data(), num_blocks, ot_dig);
-
-
     return shares;
   }
 
@@ -161,7 +175,7 @@ namespace asyncAsterisk {
       }
     }
 
-    ot_dig = hashFields(upad);
+    ot_dig = {Field(0), Field(0), Field(0), Field(0)};
     delete[] data;
 
     return shares;
@@ -196,6 +210,7 @@ namespace asyncAsterisk {
       }
     }
 
+    ot_dig = {Field(0), Field(0), Field(0), Field(0)};
     return shares;
   }
 

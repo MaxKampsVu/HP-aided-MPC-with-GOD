@@ -5,7 +5,7 @@ namespace dmAsyncAsteriskGOD {
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed) 
     : nP_(nP), id_(id), security_param_(security_param), rgen_(id, nP, seed), network_(std::move(network1)), 
     network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(2, false), 
-    chunk_size_(50000), inputToOPE(2), run_async_(true)
+    chunk_size_(50000), inputToOPE(2), run_async_(false)
   {
     run_async_ ? setupASync(threads) : setupSync();
   }
@@ -64,6 +64,7 @@ namespace dmAsyncAsteriskGOD {
 
   void OfflineEvaluator::setupSync() {
     tpool_ = std::make_shared<ThreadPool>(1); // TODO: resize for sync call 
+    tpool_ope_sync_ = std::make_shared<ThreadPool>(nP_ - 1); // Resize the tpool to send a msg to all but 1 Party 
     if (id_ == 0) {
       // Create OT instance for each Part
       for (size_t pid = 1; pid <= nP_; pid++) {
@@ -212,7 +213,7 @@ namespace dmAsyncAsteriskGOD {
     }
   }
 
-  bool OfflineEvaluator::verifyOPEMsgs() {
+  bool OfflineEvaluator::verifyOPEMsgsASync() {
       constexpr size_t kChunkMsgLength = 5;   // 1 sender_id + 4 digest fields
       constexpr size_t kDigestLength   = 4;
       const size_t num_chunks = chunk_dig_pid_.size();
@@ -253,8 +254,6 @@ namespace dmAsyncAsteriskGOD {
         std::vector<Field> recv_buf(total_comm);
         network_->recv(0, recv_buf.data(), recv_buf.size() * sizeof(Field));
 
-        std::cout << id_ << " received dig" << std::endl;
-
         for (size_t i = 0; i < num_chunks; i++) {
           const size_t offset = i * kChunkMsgLength;
 
@@ -274,7 +273,7 @@ namespace dmAsyncAsteriskGOD {
           if (Field(id_) != sender_id && my_digest != recv_digest) {
               std::cout << "Party " << id_
                         << " has identified Party " << sender_id
-                        << " as a cheater!" << std::endl;
+                        << " as a cheater during OPE!" << std::endl;
               return false;
           }
         }
@@ -283,35 +282,72 @@ namespace dmAsyncAsteriskGOD {
       return true;
   }
 
-  // void OfflineEvaluator::sendDigest() {
-  //   constexpr size_t honest_abort_message_length = 5;
-  //   auto honest_abort_message_length * chunk_ot_dig_pid_vec.size();
+  bool OfflineEvaluator::verifyOPEMsgsSync() {
+      constexpr size_t kChunkMsgLength = 4;   // 4 digest fields
+      constexpr size_t kDigestLength   = 4;
+      const size_t num_chunks = chunk_dig_pid_.size();
+      const size_t total_comm = kChunkMsgLength * num_chunks;
 
-  //   std::cout << "total_comm_to_P" << total_comm_to_P << std::endl;
+      /**
+       * recv_buf/send_buf layout (sender id is implictly known):
+       *   [ digest(4) ] ... (for each chunk)
+       */
 
-  //   std::vector<Field> send_buf;
-  //   send_buf.resize(total_comm_to_P);
-  //   size_t idx = 0;
+      if(id_ == 0) {
+        std::vector<Field> send_buf(total_comm);
 
-  //   for (auto& [dig, pid] : chunk_dig_pid_) {
-  //       send_buf[idx++] = Field(pid);
-  //       for (auto& f : dig)
-  //           send_buf[idx++] = f;
-  //   }
-    
-  //   std::vector<std::future<void>> send_t;    
-  //   for(size_t pid = 1; pid <= nP_; pid++) {
-  //       send_t.push_back(tpool_->enqueue([&,pid]() {
-  //           network_->send(pid, send_buf.data(), sizeof(Field) * total_comm_to_P);
-  //           network_->getSendChannel(pid)->flush();
-  //       }));
-  //   }
-  //   for(auto& t : send_t) {
-  //       if (t.valid()) {
-  //           t.wait();
-  //       }
-  //   }
-  // }
+        // Prepare send_buf 
+        size_t idx = 0;
+        for (auto& [chunk_dig, sender_pid] : chunk_dig_pid_) {
+            for (auto& dig_elem : chunk_dig)
+                send_buf[idx++] = dig_elem;
+        }
+
+        // Send send_buf to each party (except SYNC_SENDER_PID_)
+        std::vector<std::future<void>> send_t;    
+        for(size_t pid = 1; pid <= nP_; pid++) {
+            if(pid == SYNC_SENDER_PID_) {
+              continue;
+            }
+            send_t.push_back(tpool_ope_sync_->enqueue([&,pid]() {
+                network_->send(pid, send_buf.data(), sizeof(Field) * total_comm);
+                network_->getSendChannel(pid)->flush();
+            }));
+        }
+        for(auto& t : send_t) {
+            if (t.valid()) {
+                t.wait();
+            }
+        }
+      }
+      else if(id_ != SYNC_SENDER_PID_) {
+        // Receive buffer
+        std::vector<Field> recv_buf(total_comm);
+        network_->recv(0, recv_buf.data(), recv_buf.size() * sizeof(Field));
+
+        for (size_t i = 0; i < num_chunks; i++) {
+          const size_t offset = i * kChunkMsgLength;
+
+          // Extract received digest from buffer
+          fieldDig recv_digest(
+              recv_buf.begin() + offset,
+              recv_buf.begin() + offset + kDigestLength
+          );
+
+          // My digest for chunk i
+          const fieldDig& my_digest = chunk_dig_pid_[i].first;
+
+          // Check mismatch
+          if (my_digest != recv_digest) {
+              std::cout << "Party " << id_
+                        << " has identified Party " << SYNC_SENDER_PID_
+                        << " as a cheater during OPE!" << std::endl;
+              return false;
+          }
+        }
+      }
+      return true;
+  }
 
   void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count) {
     run_async_ ? runOPEASync(inputToOPE, outputOfOPE, count) : runOPESync(inputToOPE, outputOfOPE, count);
@@ -347,7 +383,7 @@ namespace dmAsyncAsteriskGOD {
       outputOfOPE = OPE_res.data;
     }
 
-    verifyOPEMsgs();
+    verifyOPEMsgsASync();
   }
 
 
@@ -389,6 +425,8 @@ namespace dmAsyncAsteriskGOD {
       std::swap(offline_message_buffer_[count], empty);
       outputOfOPE = OPE_res.data;
     }
+
+    verifyOPEMsgsSync();
   }
 
   void OfflineEvaluator::multSS(const Field& share1_val, const Field& share2_val, Field& output_val, 
