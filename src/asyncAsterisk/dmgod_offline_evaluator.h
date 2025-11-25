@@ -28,11 +28,10 @@ namespace dmAsyncAsteriskGOD {
         std::shared_ptr<NetIOMP> network_ot_;
         LevelOrderedCircuit circ_;
         std::shared_ptr<ThreadPool> tpool_;
-        std::shared_ptr<ThreadPool> tpool_offline_;
         PreprocCircuit<Field> preproc_;
         std::vector<std::unique_ptr<OTProviderHA>> ot_;
         std::unordered_map<size_t, std::queue<Offline_Message>> offline_message_buffer_;
-        std::vector<std::pair<std::vector<Field>, size_t>> chunk_ot_dig_pid_vec;
+        std::vector<std::pair<std::vector<Field>, size_t>> chunk_dig_pid_;
         std::size_t chunk_size_;
         std::mutex mtx_;
         std::condition_variable cv_;
@@ -62,7 +61,7 @@ namespace dmAsyncAsteriskGOD {
             TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
         static void randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
         void sendDigest();
-        bool digestCheck(fieldDig ot_dig);
+        bool verifyOPEMsgs();
         void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
         void multSS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
         void prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map);
