@@ -5,7 +5,7 @@ namespace dmAsyncAsteriskGOD {
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed) 
     : nP_(nP), id_(id), security_param_(security_param), rgen_(id, nP, seed), network_(std::move(network1)), 
     network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(2, false), 
-    chunk_size_(50000), inputToOPE(2), run_async_(false)
+    chunk_size_(50000), inputToOPE(2), run_async_(true)
   {
     run_async_ ? setupASync(threads) : setupSync();
   }
@@ -231,8 +231,9 @@ namespace dmAsyncAsteriskGOD {
         size_t idx = 0;
         for (auto& [chunk_dig, sender_pid] : chunk_dig_pid_) {
             send_buf[idx++] = Field(sender_pid);
-            for (auto& dig_elem : chunk_dig)
-                send_buf[idx++] = dig_elem;
+            for (auto& dig_elem : chunk_dig) {
+              send_buf[idx++] = dig_elem;
+            }
         }
 
         // Send send_buf to each party 
@@ -278,19 +279,17 @@ namespace dmAsyncAsteriskGOD {
           }
         }
       }
-        
       return true;
   }
 
   bool OfflineEvaluator::verifyOPEMsgsSync() {
-      constexpr size_t kChunkMsgLength = 4;   // 4 digest fields
+      constexpr size_t kChunkMsgLength = 5;   // 1 sender_id + 4 digest fields
       constexpr size_t kDigestLength   = 4;
       const size_t num_chunks = chunk_dig_pid_.size();
       const size_t total_comm = kChunkMsgLength * num_chunks;
-
       /**
-       * recv_buf/send_buf layout (sender id is implictly known):
-       *   [ digest(4) ] ... (for each chunk)
+       * recv_buf/send_buf layout:
+       *   [ sender_id | digest(4) ] ... (for each chunk)
        */
 
       if(id_ == 0) {
@@ -299,17 +298,15 @@ namespace dmAsyncAsteriskGOD {
         // Prepare send_buf 
         size_t idx = 0;
         for (auto& [chunk_dig, sender_pid] : chunk_dig_pid_) {
+            send_buf[idx++] = Field(sender_pid);
             for (auto& dig_elem : chunk_dig)
                 send_buf[idx++] = dig_elem;
         }
 
-        // Send send_buf to each party (except SYNC_SENDER_PID_)
+        // Send send_buf to each party 
         std::vector<std::future<void>> send_t;    
         for(size_t pid = 1; pid <= nP_; pid++) {
-            if(pid == SYNC_SENDER_PID_) {
-              continue;
-            }
-            send_t.push_back(tpool_ope_sync_->enqueue([&,pid]() {
+            send_t.push_back(tpool_->enqueue([&,pid]() {
                 network_->send(pid, send_buf.data(), sizeof(Field) * total_comm);
                 network_->getSendChannel(pid)->flush();
             }));
@@ -320,33 +317,34 @@ namespace dmAsyncAsteriskGOD {
             }
         }
       }
-      else if(id_ != SYNC_SENDER_PID_) {
+      else {
         // Receive buffer
         std::vector<Field> recv_buf(total_comm);
         network_->recv(0, recv_buf.data(), recv_buf.size() * sizeof(Field));
-
         for (size_t i = 0; i < num_chunks; i++) {
           const size_t offset = i * kChunkMsgLength;
 
+          // Extract sender from buffer 
+          const Field sender_id = recv_buf[offset];
+
           // Extract received digest from buffer
           fieldDig recv_digest(
-              recv_buf.begin() + offset,
-              recv_buf.begin() + offset + kDigestLength
+              recv_buf.begin() + offset + 1,
+              recv_buf.begin() + offset + 1 + kDigestLength
           );
 
           // My digest for chunk i
           const fieldDig& my_digest = chunk_dig_pid_[i].first;
 
           // Check mismatch
-          if (my_digest != recv_digest) {
+          if (Field(id_) != sender_id && my_digest != recv_digest) {
               std::cout << "Party " << id_
-                        << " has identified Party " << SYNC_SENDER_PID_
-                        << " as a cheater during OPE!" << std::endl;
+                        << " has identified Party " << sender_id
+                        << " as a cheater!" << std::endl;
               return false;
           }
         }
       }
-      return true;
   }
 
   void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count) {

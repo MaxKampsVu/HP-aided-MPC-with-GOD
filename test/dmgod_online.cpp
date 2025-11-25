@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_SUITE(dm_online_evaluator)
 BOOST_AUTO_TEST_CASE(mult) {
   ZZ_pContext ZZ_p_ctx;
   ZZ_p_ctx.save();
-  int nP = 2;
+  int nP = 5;
   auto seed_block = emp::makeBlock(0, 200);
   emp::PRG prg(&seed_block);
   std::mt19937 gen(rand());

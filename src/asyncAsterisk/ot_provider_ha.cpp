@@ -210,7 +210,7 @@ void print_vector(const std::vector<T>& v) {
       }
     }
 
-    ot_dig = {Field(0), Field(0), Field(0), Field(0)};
+    ot_dig = {Field(1), Field(0), Field(0), Field(0)};
     return shares;
   }
 
