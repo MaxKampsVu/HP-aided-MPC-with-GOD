@@ -121,7 +121,7 @@ namespace dmAsyncAsteriskGOD {
         }
     }
 
-    
+
     void OnlineEvaluator::evaluateGatesAtDepthPartyRecv(size_t depth, std::vector<Field> mult_all) {
         size_t idx_mult = 0;
 
