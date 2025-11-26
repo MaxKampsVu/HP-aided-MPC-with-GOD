@@ -21,7 +21,7 @@ namespace asyncAsterisk {
 
         void sendFieldElements(const Field* data, size_t length);
         void recvFieldElements(Field* data, size_t length);
-        void send(const Field* data0, const Field* data1, size_t length, fieldDig& ot_dig);
+        void send(const Field* data0, const Field* data1, size_t length, PRG& prg, fieldDig& ot_dig);
         void recv(Field* data, const bool* r, size_t length, fieldDig& ot_dig);
         std::vector<Field> multiplySend(const std::vector<Field>& inputs, PRG& prg, fieldDig& ot_dig);
         std::vector<Field> multiplySendOffline(const std::vector<Field> inputs, PRG& prg, fieldDig& ot_dig);

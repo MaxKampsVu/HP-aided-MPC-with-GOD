@@ -5,7 +5,7 @@ namespace dmAsyncAsteriskGOD {
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed) 
     : nP_(nP), id_(id), security_param_(security_param), rgen_(id, nP, seed), network_(std::move(network1)), 
     network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(2, false), 
-    chunk_size_(50000), inputToOPE(2), run_async_(false)
+    chunk_size_(50000), inputToOPE(2), run_async_(true)
   {
     run_async_ ? setupASync(threads) : setupSync();
   }

@@ -29,45 +29,45 @@ else
     dir=~/benchmark_data/dm_async_asterisk_god_mpc
 fi
 
+
+# rm -rf $dir/*.log $dir/g*.json
 mkdir -p $dir
 
 num_repeat=1
 
 for repeat in $(seq 1 $num_repeat)
 do
+
+# for players in {5,10,20,30}
 for players in $3
 do
     for party in $(seq 1 $players)
     do
         log=$dir/g_$1_d_$2_$party.log
-
-        # delayed parties get latency parameter
+        json=$dir/g_$1_d_$2_$party.json
         if test $party -gt $(($players - $delay_party_count))
         then
-            $run_app -p $party \
-                     --localhost \
-                     -g $1 -d $2 -n $players \
-                     -l $latency \
-                     2>&1 | tee -a "$log" &
+            if test $party = $players
+            then
+                $run_app -p $party --localhost -g $1 -d $2 -n $players -l $latency 2>&1 >> $log &
+            else
+                $run_app -p $party --localhost -g $1 -d $2 -n $players -l $latency 2>&1 > /dev/null &
+            fi
         else
-            $run_app -p $party \
-                     --localhost \
-                     -g $1 -d $2 -n $players \
-                     2>&1 | tee -a "$log" &
+            if test $party = $players
+            then
+                $run_app -p $party --localhost -g $1 -d $2 -n $players 2>&1 >> $log &
+            else
+                $run_app -p $party --localhost -g $1 -d $2 -n $players 2>&1 > /dev/null &
+            fi
         fi
-
+        
         codes[$party]=$!
     done
 
-    # party 0
-    $run_app -p 0 \
-             --localhost \
-             -g $1 -d $2 -n $players \
-             -t $threads \
-             2>&1 | tee -a $dir/g_$1_d_$2_0.log &
+    $run_app -p 0 --localhost -g $1 -d $2 -n $players -t $threads 2>&1 | tee -a $dir/g_$1_d_$2_0.log &
     codes[0]=$!
 
-    # wait for all
     for party in $(seq 0 $players)
     do
         wait ${codes[$party]} || return 1
@@ -75,4 +75,6 @@ do
 
     pkill -f $run_app
 done
+
 done
+

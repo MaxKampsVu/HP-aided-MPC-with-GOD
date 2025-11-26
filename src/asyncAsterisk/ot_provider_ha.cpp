@@ -34,24 +34,30 @@ namespace asyncAsterisk {
   }
 
   template <typename T>
-void print_vector(const std::vector<T>& v) {
-    std::cout << "[";
+  void print_vector(const std::vector<T>& v) {
+      std::cout << "[";
 
-    for (size_t i = 0; i < v.size(); ++i) {
-        std::cout << v[i];
-        if (i + 1 < v.size())
-            std::cout << ", ";
-    }
+      for (size_t i = 0; i < v.size(); ++i) {
+          std::cout << v[i];
+          if (i + 1 < v.size())
+              std::cout << ", ";
+      }
 
-    std::cout << "]\n";
-}
+      std::cout << "]\n";
+  }
+
+  std::vector<Field> blockToFields(emp::block b) {
+    alignas(16) uint64_t tmp[2];
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(tmp), b);
+    return {Field(tmp[0]), Field(tmp[1])};
+  }
 
 
-  void OTProviderHA::send(const Field* data0, const Field* data1, size_t length, fieldDig& ot_dig) {
+  void OTProviderHA::send(const Field* data0, const Field* data1, size_t length, PRG& prg, fieldDig& ot_dig) {
     auto* data = new emp::block[length];    
     ot_->send_cot(data, length);
-    emp::block s;
-    ot_->prg.random_block(&s, 1); // TODO: sample with Field = ot_->prgall_minus_0() -> Block(Field)
+    emp::block s = {0, 0};
+    prg.random_block(&s, 1); 
     ios_[0]->send_block(&s, 1);
     ot_->mitccrh.setS(s);
     ios_[0]->flush();
@@ -62,7 +68,7 @@ void print_vector(const std::vector<T>& v) {
     for (size_t i = 0; i < length; i += ot_bsize) {
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         pad[2 * (j - i)] = data[j];
-        pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta;
+        pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta; // TODO: make sure delta is the same 
       }
       ot_->mitccrh.hash<ot_bsize, 2>(pad);
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
@@ -71,7 +77,8 @@ void print_vector(const std::vector<T>& v) {
         
       }
     }
-
+    
+    ot_dig = hashFields(blockToFields(s)); // TODO: append upad 
     sendFieldElements(upad.data(), 2 * sizeof(Field) * length);
     delete[] data;
   }
@@ -94,6 +101,7 @@ void print_vector(const std::vector<T>& v) {
         rdata[i + j] = res[2 * (i + j) + r[i + j]] - Field(tpad[2 * j]);
       }
     }
+    ot_dig = hashFields(blockToFields(s)); // TODO: append upad 
     delete[] data;
   }
 
@@ -121,9 +129,8 @@ void print_vector(const std::vector<T>& v) {
         idx++;
       }
     }
-    ot_dig = {Field(0), Field(0), Field(0), Field(0)};
 
-    send(inp_0.data(), inp_1.data(), num_blocks, ot_dig);
+    send(inp_0.data(), inp_1.data(), num_blocks, prg, ot_dig);
     return shares;
   }
 
@@ -159,6 +166,7 @@ void print_vector(const std::vector<T>& v) {
     auto data1 = inp_1.data();
     auto* data = new emp::block[length];    
     emp::block s;
+    prg.random_block(&s, 1); 
 
     block pad[2 * ot_bsize];
     std::vector<Field> upad(2 * length);
@@ -167,7 +175,7 @@ void print_vector(const std::vector<T>& v) {
     for (size_t i = 0; i < length; i += ot_bsize) {
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         pad[2 * (j - i)] = data[j];
-        pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta;
+        pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta; // TODO: make sure Delta is the same 
       }
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         upad[2 * j] = Field(tpad[4 * (j - i)]) + data0[j];
@@ -175,9 +183,8 @@ void print_vector(const std::vector<T>& v) {
       }
     }
 
-    ot_dig = {Field(0), Field(0), Field(0), Field(0)};
+    ot_dig = hashFields(blockToFields(s)); // TODO: append upad 
     delete[] data;
-
     return shares;
   }
       
@@ -210,7 +217,6 @@ void print_vector(const std::vector<T>& v) {
       }
     }
 
-    ot_dig = {Field(0), Field(0), Field(0), Field(0)};
     return shares;
   }
 
