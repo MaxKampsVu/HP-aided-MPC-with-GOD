@@ -122,6 +122,19 @@ namespace dmAsyncAsteriskGOD {
     } 
   }
 
+  template <typename T>
+  void print_vector(const std::vector<T>& v) {
+      std::cout << "[";
+
+      for (size_t i = 0; i < v.size(); ++i) {
+          std::cout << v[i];
+          if (i + 1 < v.size())
+              std::cout << ", ";
+      }
+
+      std::cout << "]\n";
+  }
+
   OfflineEvaluator::~OfflineEvaluator() {
     tpool_.reset();
   }
@@ -305,13 +318,12 @@ namespace dmAsyncAsteriskGOD {
       // Send send_buf to each party 
       std::vector<std::future<void>> send_t;    
       for(size_t pid = 1; pid <= nP_; pid++) {
-          if(pid == SYNC_SENDER_PID_) { // Don't send to sender in OPE 
-            continue;
+          if(pid != SYNC_SENDER_PID_) { // Don't send to designated sender in OPE 
+            send_t.push_back(tpool_ope_sync_->enqueue([&,pid]() {
+                network_->send(pid, send_buf.data(), sizeof(Field) * total_comm);
+                network_->getSendChannel(pid)->flush();
+            }));
           }
-          send_t.push_back(tpool_->enqueue([&,pid]() {
-              network_->send(pid, send_buf.data(), sizeof(Field) * total_comm);
-              network_->getSendChannel(pid)->flush();
-          }));
       }
       for(auto& t : send_t) {
           if (t.valid()) {
@@ -323,6 +335,7 @@ namespace dmAsyncAsteriskGOD {
       // Receive buffer
       std::vector<Field> recv_buf(total_comm);
       network_->recv(0, recv_buf.data(), recv_buf.size() * sizeof(Field));
+
       for (size_t i = 0; i < num_chunks; i++) {
         const size_t offset = i * kChunkMsgLength;
 
@@ -345,19 +358,6 @@ namespace dmAsyncAsteriskGOD {
       }
     }
     return true;
-  }
-
-  template <typename T>
-  void print_vector(const std::vector<T>& v) {
-      std::cout << "[";
-
-      for (size_t i = 0; i < v.size(); ++i) {
-          std::cout << v[i];
-          if (i + 1 < v.size())
-              std::cout << ", ";
-      }
-
-      std::cout << "]\n";
   }
 
   void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector<Field>& outputOfOPE, size_t count) {
@@ -401,9 +401,8 @@ namespace dmAsyncAsteriskGOD {
   void OfflineEvaluator::runOPESync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count) {
     constexpr size_t honest_abort_message_length = 4;
 
-    std::vector<fieldDig> chunk_dig_vec; 
     if(id_ != 0) {
-      chunk_dig_vec.resize(std::ceil(inputToOPE.size() / chunk_size_));
+      chunk_dig_pid_.resize(std::ceil(inputToOPE.size() / chunk_size_));
       for (size_t start = 0; start < inputToOPE.size(); start += chunk_size_) {
           size_t end = std::min(start + chunk_size_, inputToOPE.size());
           std::vector<Field> chunk(inputToOPE.begin() + start, inputToOPE.begin() + end);
@@ -415,8 +414,8 @@ namespace dmAsyncAsteriskGOD {
           } else {
             auto chunk_output = ot_[0]->multiplySendOffline(chunk, rgen_.all_minus_0(), chunk_dig);
             outputOfOPE.insert(outputOfOPE.end(), chunk_output.begin(), chunk_output.end());
-            chunk_dig_vec.push_back(chunk_dig);
           }
+          chunk_dig_pid_.push_back(std::make_pair(chunk_dig, id_));
       }
     } 
     else {
@@ -436,7 +435,7 @@ namespace dmAsyncAsteriskGOD {
       outputOfOPE = OPE_res.data;
     }
 
-    //verifyOPEMsgsSync();
+    verifyOPEMsgsSync();
   }
 
   void OfflineEvaluator::multSS(const Field& share1_val, const Field& share2_val, Field& output_val, 
