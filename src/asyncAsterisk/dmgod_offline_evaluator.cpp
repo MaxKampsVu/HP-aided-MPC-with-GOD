@@ -347,7 +347,20 @@ namespace dmAsyncAsteriskGOD {
       }
   }
 
-  void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count) {
+  template <typename T>
+void print_vector(const std::vector<T>& v) {
+    std::cout << "[";
+
+    for (size_t i = 0; i < v.size(); ++i) {
+        std::cout << v[i];
+        if (i + 1 < v.size())
+            std::cout << ", ";
+    }
+
+    std::cout << "]\n";
+}
+
+  void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector<Field>& outputOfOPE, size_t count) {
     run_async_ ? runOPEASync(inputToOPE, outputOfOPE, count) : runOPESync(inputToOPE, outputOfOPE, count);
   }
 
@@ -369,7 +382,7 @@ namespace dmAsyncAsteriskGOD {
         std::lock_guard<std::mutex> lock(mtx_);
         start_ot_[count] = true;
       }
-      cv_start_ot_[count].notify_one();
+      cv_start_ot_[count].notify_all();
       {
         std::unique_lock<std::mutex> lock(mtx_);
         cv_.wait(lock, [&]() { return offline_message_buffer_[count].size() >= 1; });
@@ -381,7 +394,7 @@ namespace dmAsyncAsteriskGOD {
       outputOfOPE = OPE_res.data;
     }
 
-    verifyOPEMsgsASync();
+    //verifyOPEMsgsASync();
   }
 
 
@@ -412,19 +425,18 @@ namespace dmAsyncAsteriskGOD {
         std::lock_guard<std::mutex> lock(mtx_);
         start_ot_[count] = true;
       }
-      cv_start_ot_[count].notify_one();
+      cv_start_ot_[count].notify_all();
       {
         std::unique_lock<std::mutex> lock(mtx_);
         cv_.wait(lock, [&]() { return offline_message_buffer_[count].size() >= 1; });
       }
       Offline_Message OPE_res = offline_message_buffer_[count].front();
-      auto receiver_pid = OPE_res.receiver_id;
       std::queue<Offline_Message> empty;
       std::swap(offline_message_buffer_[count], empty);
       outputOfOPE = OPE_res.data;
     }
 
-    verifyOPEMsgsSync();
+    //verifyOPEMsgsSync();
   }
 
   void OfflineEvaluator::multSS(const Field& share1_val, const Field& share2_val, Field& output_val, 
@@ -482,9 +494,6 @@ namespace dmAsyncAsteriskGOD {
           }
 
           case GateType::kMul: {
-            if (id_ == nP_) {
-              buffer_num += 2;
-            }
             // Create the output wire mask share and initialize it later 
             preproc_.gates[gate->out] = std::make_unique<PreprocMultGate<Field>>();
             const auto* g = static_cast<FIn2Gate*>(gate.get());
@@ -588,63 +597,61 @@ namespace dmAsyncAsteriskGOD {
 
     runOPE(inputToOPE[1], outputOfOPE, 1);
 
-    if (id_ != nP_) {
-      for (const auto& level : circ_.gates_by_level) {
-        for (const auto& gate : level) {
-          switch (gate->type) {
-            case GateType::kInp: {
-              auto *pre_input = static_cast<PreprocInput<Field> *>(preproc_.gates[gate->out].get());
-              pre_input->mask.setMACComponent(outputOfOPE[idx_outputOfOPE++]);                
-              break;
-            }
+    for (const auto& level : circ_.gates_by_level) {
+      for (const auto& gate : level) {
+        switch (gate->type) {
+          case GateType::kInp: {
+            auto *pre_input = static_cast<PreprocInput<Field> *>(preproc_.gates[gate->out].get());
+            pre_input->mask.setMACComponent(outputOfOPE[idx_outputOfOPE++]);                
+            break;
+          }
 
-            case GateType::kAdd: {
-              const auto* g = static_cast<FIn2Gate*>(gate.get());
-              const auto& mask_in1 = preproc_.gates[g->in1]->mask;
-              const auto& mask_in2 = preproc_.gates[g->in2]->mask;
-              preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 + mask_in2));    
-              break;
-            }
-  
-            case GateType::kConstAdd: {
-              const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
-              const auto& mask = preproc_.gates[g->in]->mask + g->cval;
-              preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
-              break;
-            }
-  
-            case GateType::kConstMul: {
-              const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
-              const auto& mask = preproc_.gates[g->in]->mask * g->cval;
-              preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
-              break;
-            }
-  
-            case GateType::kSub: {
-              const auto* g = static_cast<FIn2Gate*>(gate.get());
-              const auto& mask_in1 = preproc_.gates[g->in1]->mask;
-              const auto& mask_in2 = preproc_.gates[g->in2]->mask;
-              preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 - mask_in2));
-              break;
-            }
+          case GateType::kAdd: {
+            const auto* g = static_cast<FIn2Gate*>(gate.get());
+            const auto& mask_in1 = preproc_.gates[g->in1]->mask;
+            const auto& mask_in2 = preproc_.gates[g->in2]->mask;
+            preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 + mask_in2));    
+            break;
+          }
 
-            case GateType::kMul: {
-              auto *pre_gate = preproc_.gates[gate->out].get();
-              auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
-              pre_gate->mask.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
-              pre_mul->mask_prod.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
-              break;
-            }
-    
-            default: {
-              break;
-            }
+          case GateType::kConstAdd: {
+            const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
+            const auto& mask = preproc_.gates[g->in]->mask + g->cval;
+            preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
+            break;
+          }
+
+          case GateType::kConstMul: {
+            const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
+            const auto& mask = preproc_.gates[g->in]->mask * g->cval;
+            preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
+            break;
+          }
+
+          case GateType::kSub: {
+            const auto* g = static_cast<FIn2Gate*>(gate.get());
+            const auto& mask_in1 = preproc_.gates[g->in1]->mask;
+            const auto& mask_in2 = preproc_.gates[g->in2]->mask;
+            preproc_.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 - mask_in2));
+            break;
+          }
+
+          case GateType::kMul: {
+            auto *pre_gate = preproc_.gates[gate->out].get();
+            auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
+            pre_gate->mask.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
+            pre_mul->mask_prod.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
+            break;
+          }
+  
+          default: {
+            break;
           }
         }
       }
-      outputOfOPE.clear();
-      outputOfOPE.shrink_to_fit();      
     }
+    outputOfOPE.clear();
+    outputOfOPE.shrink_to_fit();      
   }
     
   void OfflineEvaluator::setWireMasks(const std::unordered_map<wire_t,int>& input_pid_map) {      

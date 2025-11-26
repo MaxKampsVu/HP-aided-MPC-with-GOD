@@ -32,6 +32,8 @@ namespace dmAsyncAsteriskGOD {
         std::mutex mtx_;
         std::condition_variable cv_;
         std::condition_variable cv_start_recv_;
+        static int counter_tp;
+        static int counter_p;
         bool start_recv_;
 
         public:

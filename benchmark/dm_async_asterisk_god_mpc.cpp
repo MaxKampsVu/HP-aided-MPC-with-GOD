@@ -124,7 +124,6 @@ void benchmark(const bpo::variables_map& opts) {
         // eval.MACVerification();
         
         auto res = eval.evaluateCircuit(input_map);
-        std::cout << "Finished online phase" << std::endl;
     }    
     
     StatsPoint end(*network);

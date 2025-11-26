@@ -51,7 +51,7 @@ void print_vector(const std::vector<T>& v) {
     auto* data = new emp::block[length];    
     ot_->send_cot(data, length);
     emp::block s;
-    ot_->prg.random_block(&s, 1);
+    ot_->prg.random_block(&s, 1); // TODO: sample with Field = ot_->prgall_minus_0() -> Block(Field)
     ios_[0]->send_block(&s, 1);
     ot_->mitccrh.setS(s);
     ios_[0]->flush();
@@ -210,7 +210,7 @@ void print_vector(const std::vector<T>& v) {
       }
     }
 
-    ot_dig = {Field(1), Field(0), Field(0), Field(0)};
+    ot_dig = {Field(0), Field(0), Field(0), Field(0)};
     return shares;
   }
 
