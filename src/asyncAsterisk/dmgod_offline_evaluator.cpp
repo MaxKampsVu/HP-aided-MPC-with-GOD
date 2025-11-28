@@ -2,10 +2,10 @@
 
 namespace dmAsyncAsteriskGOD {
   OfflineEvaluator::OfflineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network1, 
-    std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed) 
+    std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed, bool run_async) 
     : nP_(nP), id_(id), security_param_(security_param), rgen_(id, nP, seed), network_(std::move(network1)), 
     network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(2, false), 
-    chunk_size_(50000), inputToOPE(2), run_async_(true)
+    chunk_size_(50000), inputToOPE(2), run_async_(false)
   {
     run_async_ ? setupASync(threads) : setupSync();
   }
@@ -337,7 +337,6 @@ namespace dmAsyncAsteriskGOD {
       std::vector<Field> recv_buf(total_comm);
       network_->recv(0, recv_buf.data(), recv_buf.size() * sizeof(Field));
       network_->getRecvChannel(0)->flush();
-
       for (size_t i = 0; i < num_chunks; i++) {
         const size_t offset = i * kChunkMsgLength;
 

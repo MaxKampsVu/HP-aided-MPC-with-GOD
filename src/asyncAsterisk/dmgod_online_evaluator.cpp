@@ -2,7 +2,7 @@
 
 namespace dmAsyncAsteriskGOD {
     int dmAsyncAsteriskGOD::OnlineEvaluator::counter_tp = 0;
-     int dmAsyncAsteriskGOD::OnlineEvaluator::counter_p = 0;
+    int dmAsyncAsteriskGOD::OnlineEvaluator::counter_p = 0;
 
 
     OnlineEvaluator::OnlineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network, PreprocCircuit<Field> preproc, 

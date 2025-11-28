@@ -49,7 +49,6 @@ void benchmark(const bpo::variables_map& opts) {
     auto latency = opts["latency"].as<size_t>();
     auto seed = opts["seed"].as<size_t>();
     auto port = opts["port"].as<int>();
-    auto run_async = opts["run-async"].as<bool>();
 
     initNTL(threads);
 
@@ -111,7 +110,7 @@ void benchmark(const bpo::variables_map& opts) {
 
     PreprocCircuit<Field> preproc;
     {
-        OfflineEvaluator off_eval(nP, pid, security_param, network, network, circ, threads, seed, run_async);
+        OfflineEvaluator off_eval(nP, pid, security_param, network, network, circ, threads, seed, true);
         preproc = off_eval.run(input_pid_map);
     }
 

@@ -53,7 +53,7 @@ namespace dmAsyncAsteriskGOD {
 
         public:
         OfflineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network1, std::shared_ptr<NetIOMP> network2, 
-            LevelOrderedCircuit circ, int threads, uint64_t seed = 200);
+            LevelOrderedCircuit circ, int threads, uint64_t seed = 200, bool run_async = true);
         ~OfflineEvaluator();
 
         void keyGen();
