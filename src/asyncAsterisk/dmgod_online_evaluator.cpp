@@ -26,8 +26,10 @@ namespace dmAsyncAsteriskGOD {
                     for (size_t depth = 0; depth < circ_.gates_by_level.size(); depth++) {
                         size_t total_comm;
                         network_->recv(pid, &total_comm, sizeof(size_t));
+                        network_->getRecvChannel(pid)->flush();
                         std::vector<Field> online_comm_to_HP(total_comm);
                         network_->recv(pid, online_comm_to_HP.data(), sizeof(Field) * total_comm);
+                        network_->getRecvChannel(pid)->flush();
                         {
                             std::lock_guard<std::mutex> lock(mtx_);
                             message_buffer_[depth].push({pid, online_comm_to_HP});
@@ -54,6 +56,7 @@ namespace dmAsyncAsteriskGOD {
                 // HP waits for masked value from input provider 
                 if (id_ == 0) {
                     network_->recv(pid, &q_val_[g->out], sizeof(Field));
+                    network_->getRecvChannel(pid)->flush();
                     std::vector<std::future<void>> send_t;
                     for (size_t i = 1; i <= nP_; i++) {
                         if (i == pid)
@@ -79,6 +82,7 @@ namespace dmAsyncAsteriskGOD {
                     }
                     else {
                         network_->recv(0, &q_val_[g->out], sizeof(Field));
+                        network_->getRecvChannel(0)->flush();
                     }
                 }
                 
@@ -275,6 +279,7 @@ namespace dmAsyncAsteriskGOD {
         }
         if (id_ != 0) {
             network_->recv(0, agg_values.data(), sizeof(Field) * total_comm);
+            network_->getRecvChannel(0)->flush();
             for(size_t i = 0; i < mult_num; i++) {
                 mult_all[i] = agg_values[i] + mult_nonTP[i];
             }
@@ -308,11 +313,14 @@ namespace dmAsyncAsteriskGOD {
                               message.data.end()
                 );
 
-                // Compare hash to last 4 field elements of the message by the party (which is the hash of the parties tags)
                 if(tp_layer_dig != p_layer_dig) {
-                    std::cout << "Received inconsistent shares from Party " << message.receiver_id << " shares!" << std::endl;
+                    std::cout << counter_tp << ": Received inconsistent shares from Party " << message.receiver_id << std::endl;
                 }
             }
+
+            counter_tp++;
+
+            
             
             for(size_t i = 0; i < mult_num; i++) {
                 mult_all[i] = agg_values[i] + message.data[i];
@@ -354,6 +362,7 @@ namespace dmAsyncAsteriskGOD {
         else {
             std::vector<Field> output_masks(circ_.outputs.size());
             network_->recv(0, output_masks.data(), output_masks.size() * sizeof(Field));
+            network_->getRecvChannel(0)->flush();
             for (size_t i = 0; i < circ_.outputs.size(); ++i) {
                 Field outmask = output_masks[i];
                 auto wout = circ_.outputs[i];

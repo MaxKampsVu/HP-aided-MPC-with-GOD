@@ -267,6 +267,7 @@ namespace dmAsyncAsteriskGOD {
       // Receive buffer
       std::vector<Field> recv_buf(total_comm);
       network_->recv(0, recv_buf.data(), recv_buf.size() * sizeof(Field));
+      network_->getRecvChannel(0)->flush();
 
       for (size_t i = 0; i < num_chunks; i++) {
         const size_t offset = i * kChunkMsgLength;
@@ -335,6 +336,7 @@ namespace dmAsyncAsteriskGOD {
       // Receive buffer
       std::vector<Field> recv_buf(total_comm);
       network_->recv(0, recv_buf.data(), recv_buf.size() * sizeof(Field));
+      network_->getRecvChannel(0)->flush();
 
       for (size_t i = 0; i < num_chunks; i++) {
         const size_t offset = i * kChunkMsgLength;

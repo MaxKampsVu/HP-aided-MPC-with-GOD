@@ -1,4 +1,23 @@
-# Asynchronous HP-aided MPC
+# Asynchronous HP-aided MPC with GOD 
+
+The asynchronous version of our new Protocol can be executed with the script:
+```sh
+async_asterisk_god_mpc.sh
+```
+The script takes the same arguments as the original protocols with abort. 
+
+## Location of the implementation: 
+- dmgod_offline_evaluator.cpp
+- dmgod_online_evaluator.cpp
+
+Note, that the online phase remains the same for both the synchronous and asynchronous version of our protocol. Only the offline phase changes in (`dmgod_offline_evaluator.cpp`).
+To run the synchronous version of the protocol set the member variable `run_async_` in `dmgod_offline_evaluator.cpp` to false and recompile. (I will provide a separate script once I know how to set up a synchronous network environment). 
+
+The new sharing type (which macs only the parties share) is located in `dmgod_sharing`. 
+
+Moreover, for the new protocol the `ot_provider.cpp` been extended in `ot_provider_ha.cpp` (ot provider with honest abort) to return the hash of the messages sent during the OLE. Note, that some messages are not included in the hash yet, due to me still figuring out how to instantiate the Ferret OT instances such that they produce the same intermediate messages for all Parties. 
+
+# Asynchronous HP-aided MPC (README of forked repo)
 
 This directory contains the implementation of the Asyncronous HP-aided MPC (accepted in IEEE S&P 2026) fair protocols for both honest-majority and dishonest-majority settings.
 The protocol is implemented in C++17 and [CMake](https://cmake.org/) is used as the build system.
