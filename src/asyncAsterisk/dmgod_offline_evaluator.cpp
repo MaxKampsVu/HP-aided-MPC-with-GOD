@@ -46,9 +46,9 @@ namespace dmAsyncAsteriskGOD {
     } else {
       if (id_ == 0) {
         for (size_t pid = 1; pid <= nP_; pid++) {
-          if (pid == SYNC_SENDER_PID_) {
-            ot_.emplace_back(std::make_unique<OTProviderHA>(id_, SYNC_SENDER_PID_, network_ot_->getRecvChannel(SYNC_SENDER_PID_)));
-            network_ot_->getRecvChannel(SYNC_SENDER_PID_)->flush();
+          if (pid == SYNC_SENDER_PID) {
+            ot_.emplace_back(std::make_unique<OTProviderHA>(id_, SYNC_SENDER_PID, network_ot_->getRecvChannel(SYNC_SENDER_PID)));
+            network_ot_->getRecvChannel(SYNC_SENDER_PID)->flush();
           } else {
             std::make_unique<OTProviderHA>(id_, pid, network_ot_->getRecvChannel(pid));
             network_ot_->getSendChannel(pid)->flush();
@@ -114,7 +114,7 @@ namespace dmAsyncAsteriskGOD {
     }
 
     // Sync mode: only spawn worker for SYNC_SENDER_PID_ 
-    spawn_worker(SYNC_SENDER_PID_, *tpool_);
+    spawn_worker(SYNC_SENDER_PID, *tpool_);
   }
 
   OfflineEvaluator::~OfflineEvaluator() {
@@ -237,7 +237,7 @@ namespace dmAsyncAsteriskGOD {
       for (size_t pid = 1; pid <= nP_; ++pid) {
 
           // In sync mode, skip sending to SYNC_SENDER_PID_
-          if (!run_async_ && pid == SYNC_SENDER_PID_) {
+          if (!run_async_ && pid == SYNC_SENDER_PID) {
               continue;
           }
 
@@ -254,7 +254,7 @@ namespace dmAsyncAsteriskGOD {
       }
     }
     else {
-      if(!run_async_ && Field(id_) == SYNC_SENDER_PID_) {
+      if(!run_async_ && Field(id_) == SYNC_SENDER_PID) {
         return true;
       }
       // Receive buffer

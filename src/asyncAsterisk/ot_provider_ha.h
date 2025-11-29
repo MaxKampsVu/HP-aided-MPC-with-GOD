@@ -8,7 +8,7 @@ using namespace emp;
 using namespace utils;
 
 namespace asyncAsterisk {
-    const size_t SYNC_SENDER_PID_ = 1;
+    const size_t SYNC_SENDER_PID = 1;
 
     class OTProviderHA {
         std::array<NetIO*, 1> ios_;

@@ -194,7 +194,7 @@ namespace asyncAsterisk {
       return multiplySendOnline(inputs, prg, ot_dig);
     } 
     else {
-      return pid == SYNC_SENDER_PID_ ? multiplySendOnline(inputs, prg, ot_dig) : multiplySendOffline(inputs, prg, ot_dig);
+      return pid == SYNC_SENDER_PID ? multiplySendOnline(inputs, prg, ot_dig) : multiplySendOffline(inputs, prg, ot_dig);
     }
   }
       
