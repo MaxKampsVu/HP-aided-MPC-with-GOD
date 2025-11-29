@@ -40,16 +40,6 @@ namespace dmAsyncAsteriskGOD {
         std::vector<bool> start_ot_;
         std::vector<std::vector<Field>> inputToOPE;
         bool run_async_;
-        const size_t SYNC_SENDER_PID_ = 1;
-
-
-
-
-        void setupASync(int threads);
-        void setupSync(int threads);
-
-        void runOPEASync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
-        void runOPESync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
 
         public:
         OfflineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network1, std::shared_ptr<NetIOMP> network2, 

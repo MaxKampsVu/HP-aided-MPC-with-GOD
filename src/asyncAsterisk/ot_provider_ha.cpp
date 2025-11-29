@@ -105,7 +105,7 @@ namespace asyncAsterisk {
     delete[] data;
   }
 
-  std::vector<Field> OTProviderHA::multiplySend(const std::vector<Field>& inputs, PRG& prg, fieldDig& ot_dig) {
+  std::vector<Field> OTProviderHA::multiplySendOnline(const std::vector<Field>& inputs, PRG& prg, fieldDig& ot_dig) {
       size_t num_bits = sizeof(Field) * 8;
     size_t num_blocks = num_bits * inputs.size();
   
@@ -186,6 +186,16 @@ namespace asyncAsterisk {
     ot_dig = hashFields(blockToFields(s)); // TODO: append upad 
     delete[] data;
     return shares;
+  }
+
+
+  std::vector<Field> OTProviderHA::multiplySend(const std::vector<Field>& inputs, PRG& prg, fieldDig& ot_dig, bool run_async, size_t pid) {
+    if(run_async) {
+      return multiplySendOnline(inputs, prg, ot_dig);
+    } 
+    else {
+      return pid == SYNC_SENDER_PID_ ? multiplySendOnline(inputs, prg, ot_dig) : multiplySendOffline(inputs, prg, ot_dig);
+    }
   }
       
   std::vector<Field> OTProviderHA::multiplyRecv(const std::vector<Field>& inputs, fieldDig& ot_dig) {
