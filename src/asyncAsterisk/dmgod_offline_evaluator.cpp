@@ -18,7 +18,7 @@ namespace dmAsyncAsteriskGOD {
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed, bool run_async) 
     : nP_(nP), id_(id), security_param_(security_param), rgen_(id, nP, seed), network_(std::move(network1)), 
     network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(2, false), 
-    chunk_size_(50000), inputToOPE(2), run_async_(true)
+    chunk_size_(50000), inputToOPE(2), run_async_(false)
   {
     run_async_ ? setupASync(threads) : setupSync(threads);
   }
@@ -75,9 +75,9 @@ namespace dmAsyncAsteriskGOD {
     } 
   } 
 
-  void OfflineEvaluator::setupSync() {
+  void OfflineEvaluator::setupSync(int threads) {
     tpool_ = std::make_shared<ThreadPool>(1); // Threadpool for OPE with one party 
-    tpool_ope_sync_ = std::make_shared<ThreadPool>(nP_ - 1); // Threadpool to send OPE digest back to other parties for honest abort 
+    tpool_minus_one_ = std::make_shared<ThreadPool>(threads - 1); // Threadpool to send OPE digest back to other parties for honest abort 
     if (id_ == 0) {
       // Create OT instance for each Part
       for (size_t pid = 1; pid <= nP_; pid++) {
@@ -110,7 +110,6 @@ namespace dmAsyncAsteriskGOD {
           std::vector<Field> sharesVec;
           std::vector<fieldDig> chunk_digs;
           {
-            // Create a lock for each OT 
             std::unique_lock<std::mutex> lock(mtx_);
             cv_start_ot_[count].wait(lock, [&]() { return start_ot_[count]; }); 
           }            
@@ -120,7 +119,7 @@ namespace dmAsyncAsteriskGOD {
           for (size_t start = 0; start < inputToOPE[count].size(); start += chunk_size_) {
             size_t end = std::min(start + chunk_size_, inputToOPE[count].size());
             std::vector<Field> chunk(inputToOPE[count].begin() + start, inputToOPE[count].begin() + end);
-            auto chunk_output = ot_[0]->multiplyRecv(chunk, current_dig);
+            auto chunk_output = ot_[pid - 1]->multiplyRecv(chunk, current_dig);
             std::copy(chunk_output.begin(), chunk_output.end(), sharesVec.begin() + start);
             chunk_digs.push_back(current_dig);
           }
@@ -128,7 +127,6 @@ namespace dmAsyncAsteriskGOD {
             std::lock_guard<std::mutex> lock(mtx_); 
             offline_message_buffer_[count].push({pid, sharesVec, chunk_digs});
           }
-
           cv_.notify_one();
         } 
       });
@@ -247,12 +245,21 @@ namespace dmAsyncAsteriskGOD {
 
       // Send send_buf to each party 
       std::vector<std::future<void>> send_t;    
-      for(size_t pid = 1; pid <= nP_; pid++) {
-          send_t.push_back(tpool_->enqueue([&,pid]() {
+      auto& pool = run_async_ ? *tpool_ : *tpool_minus_one_;
+
+      for (size_t pid = 1; pid <= nP_; ++pid) {
+
+          // In sync mode, skip sending to SYNC_SENDER_PID_
+          if (!run_async_ && pid == SYNC_SENDER_PID_) {
+              continue;
+          }
+
+          send_t.push_back(pool.enqueue([&, pid]() {
               network_->send(pid, send_buf.data(), sizeof(Field) * total_comm);
               network_->getSendChannel(pid)->flush();
           }));
       }
+      
       for(auto& t : send_t) {
           if (t.valid()) {
               t.wait();
@@ -260,6 +267,9 @@ namespace dmAsyncAsteriskGOD {
       }
     }
     else {
+      if(!run_async_ && Field(id_) == SYNC_SENDER_PID_) {
+        return true;
+      }
       // Receive buffer
       std::vector<Field> recv_buf(total_comm);
       network_->recv(0, recv_buf.data(), recv_buf.size() * sizeof(Field));
@@ -290,76 +300,8 @@ namespace dmAsyncAsteriskGOD {
     return true;
   }
 
-  // bool OfflineEvaluator::verifyOPEMsgsSync() {
-  //   constexpr size_t kChunkMsgLength = 4;   // 1 sender_id + 4 digest fields
-  //   constexpr size_t kDigestLength   = 4;
-  //   const size_t num_chunks = chunk_dig_pid_.size();
-  //   const size_t total_comm = kChunkMsgLength * num_chunks;
-  //   /**
-  //    * recv_buf/send_buf layout:
-  //    *   [ sender_id | digest(4) ] ... (for each chunk)
-  //    */
-
-  //   if(id_ == 0) {
-  //     std::vector<Field> send_buf(total_comm);
-
-  //     // Prepare send_buf 
-  //     size_t idx = 0;
-  //     for (auto& [chunk_dig, sender_pid] : chunk_dig_pid_) {
-  //         for (auto& dig_elem : chunk_dig)
-  //             send_buf[idx++] = dig_elem;
-  //     }
-
-  //     // Send send_buf to each party 
-  //     std::vector<std::future<void>> send_t;    
-  //     for(size_t pid = 1; pid <= nP_; pid++) {
-  //         if(pid != SYNC_SENDER_PID_) { // Don't send to designated sender in OPE 
-  //           send_t.push_back(tpool_ope_sync_->enqueue([&,pid]() {
-  //               network_->send(pid, send_buf.data(), sizeof(Field) * total_comm);
-  //               network_->getSendChannel(pid)->flush();
-  //           }));
-  //         }
-  //     }
-  //     for(auto& t : send_t) {
-  //         if (t.valid()) {
-  //             t.wait();
-  //         }
-  //     }
-  //   }
-  //   else if(id_ != SYNC_SENDER_PID_) {
-  //     // Receive buffer
-  //     std::vector<Field> recv_buf(total_comm);
-  //     network_->recv(0, recv_buf.data(), recv_buf.size() * sizeof(Field));
-  //     network_->getRecvChannel(0)->flush();
-  //     for (size_t i = 0; i < num_chunks; i++) {
-  //       const size_t offset = i * kChunkMsgLength;
-
-  //       // Extract received digest from buffer
-  //       fieldDig recv_digest(
-  //           recv_buf.begin() + offset,
-  //           recv_buf.begin() + offset + kDigestLength
-  //       );
-
-  //       // My digest for chunk i
-  //       const fieldDig& my_digest = chunk_dig_pid_[i].first;
-
-  //       // print_vector(my_digest);
-  //       // print_vector(recv_digest);
-  //       // Check mismatch
-  //       if (my_digest != recv_digest) {
-  //           std::cout << "Party " << id_
-  //                     << " has identified Party " << SYNC_SENDER_PID_
-  //                     << " as a cheater!" << std::endl;
-  //           return false;
-  //       }
-  //     }
-  //   }
-  //   return true;
-  // }
-
   void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector<Field>& outputOfOPE, size_t count) {
-    runOPEASync(inputToOPE, outputOfOPE, count);
-    // run_async_ ? runOPEASync(inputToOPE, outputOfOPE, count) : runOPESync(inputToOPE, outputOfOPE, count);
+    run_async_ ? runOPEASync(inputToOPE, outputOfOPE, count) : runOPESync(inputToOPE, outputOfOPE, count);
   }
 
   void OfflineEvaluator::runOPEASync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count) {
@@ -400,44 +342,46 @@ namespace dmAsyncAsteriskGOD {
   }
 
 
-  // void OfflineEvaluator::runOPESync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count) {
-  //   constexpr size_t honest_abort_message_length = 4;
+  void OfflineEvaluator::runOPESync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count) {
+    std::vector<fieldDig> chunk_digs;
+    Field sender_id = Field(-1);
 
-  //   if(id_ != 0) {
-  //     chunk_dig_pid_.resize(std::ceil(inputToOPE.size() / chunk_size_));
-  //     for (size_t start = 0; start < inputToOPE.size(); start += chunk_size_) {
-  //         size_t end = std::min(start + chunk_size_, inputToOPE.size());
-  //         std::vector<Field> chunk(inputToOPE.begin() + start, inputToOPE.begin() + end);
-  //         fieldDig chunk_dig;
-  //         // Complete OPE and compute digest of my message to HP 
-  //         if(id_ == SYNC_SENDER_PID_) {
-  //           auto chunk_output = ot_[0]->multiplySend(chunk, rgen_.all_minus_0(), chunk_dig);
-  //           outputOfOPE.insert(outputOfOPE.end(), chunk_output.begin(), chunk_output.end());
-  //         } else {
-  //           auto chunk_output = ot_[0]->multiplySendOffline(chunk, rgen_.all_minus_0(), chunk_dig);
-  //           outputOfOPE.insert(outputOfOPE.end(), chunk_output.begin(), chunk_output.end());
-  //         }
-  //     }
-  //   } 
-  //   else {
-  //     // HP completes OPE with parties by proceding with first message it receives  
-  //     {
-  //       std::lock_guard<std::mutex> lock(mtx_);
-  //       start_ot_[count] = true;
-  //     }
-  //     cv_start_ot_[count].notify_all();
-  //     {
-  //       std::unique_lock<std::mutex> lock(mtx_);
-  //       cv_.wait(lock, [&]() { return offline_message_buffer_[count].size() >= 1; });
-  //     }
-  //     Offline_Message OPE_res = offline_message_buffer_[count].front();
-  //     std::queue<Offline_Message> empty;
-  //     std::swap(offline_message_buffer_[count], empty);
-  //     outputOfOPE = OPE_res.data;
-  //   }
-
-  //   verifyOPEMsgsSync();
-  // }
+    if(id_ != 0) {
+      for (size_t start = 0; start < inputToOPE.size(); start += chunk_size_) {
+        size_t end = std::min(start + chunk_size_, inputToOPE.size());
+        std::vector<Field> chunk(inputToOPE.begin() + start, inputToOPE.begin() + end);
+        fieldDig current_dig;
+        // Only SYNC_SENDER_PID_ does OPE with HP, everyone else derives their share offline 
+        if(id_ == SYNC_SENDER_PID_) {
+          auto chunk_output = ot_[0]->multiplySend(chunk, rgen_.all_minus_0(), current_dig);
+          outputOfOPE.insert(outputOfOPE.end(), chunk_output.begin(), chunk_output.end());
+        } else {
+          auto chunk_output = ot_[0]->multiplySendOffline(chunk, rgen_.all_minus_0(), current_dig);
+          outputOfOPE.insert(outputOfOPE.end(), chunk_output.begin(), chunk_output.end());
+        }
+        chunk_digs.push_back(current_dig);
+      }
+    } 
+    else {
+      // HP completes OPE with parties by proceding with first message it receives  
+      {
+        std::lock_guard<std::mutex> lock(mtx_);
+        start_ot_[count] = true;
+      }
+      cv_start_ot_[count].notify_all();
+      {
+        std::unique_lock<std::mutex> lock(mtx_);
+        cv_.wait(lock, [&]() { return offline_message_buffer_[count].size() >= 1; });
+      }
+      Offline_Message OPE_res = offline_message_buffer_[count].front();
+      std::queue<Offline_Message> empty;
+      std::swap(offline_message_buffer_[count], empty);
+      outputOfOPE = OPE_res.data;
+      chunk_digs = OPE_res.chunk_digs;
+      sender_id = Field(SYNC_SENDER_PID_);
+    }
+    verifyOPEMsgs(chunk_digs, sender_id);
+  }
 
   void OfflineEvaluator::multSS(const Field& share1_val, const Field& share2_val, Field& output_val, 
     const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE) {
