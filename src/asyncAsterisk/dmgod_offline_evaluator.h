@@ -16,6 +16,7 @@ namespace dmAsyncAsteriskGOD {
     typedef struct Offline_Message {
         size_t receiver_id;
         std::vector<Field> data;
+        std::vector<fieldDig> chunk_digs;
     } Offline_Message;
 
     class OfflineEvaluator {
@@ -32,7 +33,6 @@ namespace dmAsyncAsteriskGOD {
         PreprocCircuit<Field> preproc_;
         std::vector<std::unique_ptr<OTProviderHA>> ot_;
         std::unordered_map<size_t, std::queue<Offline_Message>> offline_message_buffer_;
-        std::vector<std::pair<std::vector<Field>, size_t>> chunk_dig_pid_;
         std::size_t chunk_size_;
         std::mutex mtx_;
         std::condition_variable cv_;
@@ -46,7 +46,7 @@ namespace dmAsyncAsteriskGOD {
 
 
         void setupASync(int threads);
-        void setupSync();
+        void setupSync(int threads);
 
         void runOPEASync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
         void runOPESync(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
@@ -61,8 +61,7 @@ namespace dmAsyncAsteriskGOD {
         static void randomShareSecret(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
             TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
         static void randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
-        bool verifyOPEMsgsASync();
-        bool verifyOPEMsgsSync();
+        bool verifyOPEMsgs(std::vector<fieldDig> chunk_digs, Field sender_id);
         void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
         void multSS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
         void prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map);
