@@ -1,6 +1,7 @@
 add_library(AsyncAsterisk
     utils/helpers.cpp
     utils/circuit.cpp
+    utils/types.cpp
     asyncAsterisk/rand_gen_pool.cpp
     asyncAsterisk/hm_offline_evaluator.cpp
     asyncAsterisk/hm_online_evaluator.cpp

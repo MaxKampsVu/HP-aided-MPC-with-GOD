@@ -95,8 +95,8 @@ namespace dmAsyncAsteriskGOD {
         for (auto &gate : circ_.gates_by_level[depth]) {
             switch (gate->type) {
                 case GateType::kMul: {
-                    auto *g = static_cast<FIn2Gate *>(gate.get());
-                    auto *pre_out = static_cast<PreprocMultGate<Field> *>(preproc_.gates[g->out].get());
+                    auto *g = static_cast<FIn2Gate*>(gate.get());
+                    auto *pre_out = static_cast<PreprocMultGate<Field>*>(preproc_.gates[g->out].get());
                     q_val_[g->out] = 0;
 
                     auto &m_in1 = preproc_.gates[g->in1]->mask;
@@ -106,6 +106,28 @@ namespace dmAsyncAsteriskGOD {
                     
                     auto q_share = m_prod + m_out - m_in1 * wires_[g->in2] - m_in2 * wires_[g->in1];   
                     q_share.add(wires_[g->in1] * wires_[g->in2], id_);                    
+                    
+                    q_sh_[g->out] = q_share;
+                    mult_nonTP.push_back(q_share.getValue());
+                    mac_components.push_back(q_share.getMACComponent());
+                    break;
+                }
+
+                case GateType::kDotprod: {
+                    auto *g = static_cast<SIMDGate*>(gate.get());
+                    auto *pre_out = static_cast<PreprocDotpGate<Field>*>(preproc_.gates[g->out].get());
+
+                    auto &m_vec_prod = pre_out->mask_prod;
+                    auto &m_out = pre_out->mask;
+                    
+                    auto q_share = m_vec_prod + m_out;
+                    for(size_t i = 0; i < g->in1.size(); i++) {
+                        const auto& m_ai = preproc_.gates[g->in1[i]]->mask;
+                        const auto& m_bi = preproc_.gates[g->in2[i]]->mask;
+
+                        q_share = q_share - m_ai * wires_[g->in2[i]] - m_bi * wires_[g->in1[i]];
+                        q_share.add(wires_[g->in1[i]] * wires_[g->in2[i]], id_);                 
+                    }                   
                     
                     q_sh_[g->out] = q_share;
                     mult_nonTP.push_back(q_share.getValue());
@@ -164,6 +186,14 @@ namespace dmAsyncAsteriskGOD {
                     idx_mult++;
                     break;
                 }
+
+                case GateType::kDotprod: {
+                    auto *g = static_cast<SIMDGate*>(gate.get());
+                    q_val_[g->out] = mult_all[idx_mult];
+                    wires_[g->out] = q_val_[g->out];
+                    idx_mult++;
+                    break;
+                }
                 
                 default:
                     break;
@@ -212,6 +242,11 @@ namespace dmAsyncAsteriskGOD {
                     break;
 
                 case GateType::kMul: {
+                    mult_num++;
+                    break;
+                }
+
+                case GateType::kDotprod: {
                     mult_num++;
                     break;
                 }

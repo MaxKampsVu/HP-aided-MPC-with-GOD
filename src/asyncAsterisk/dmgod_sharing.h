@@ -54,6 +54,16 @@ namespace dmAsyncAsteriskGOD {
             return lhs;
         }
 
+        // friend TwoShare<R> operator-(TwoShare<R> lhs, const R& rhs) {
+        //     lhs.value_ -= rhs;
+        //     lhs.mac_component_ -= rhs;
+        //     return lhs;
+        // }
+
+        // friend TwoShare<R> operator-(const R& lhs, TwoShare<R> rhs) {
+        //     return rhs - lhs;
+        // }
+
         friend TwoShare<R> operator*(TwoShare<R> lhs, const R& rhs) {
             lhs.value_ *= rhs;
             lhs.mac_component_ *= rhs;

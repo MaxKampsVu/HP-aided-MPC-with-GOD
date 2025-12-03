@@ -50,5 +50,14 @@ namespace dmAsyncAsteriskGOD {
       tp_key = key;
     }
   };
-  
+
+  template <class R>
+  struct PreprocDotpGate : public PreprocGate<R> {
+    TwoShare<R> mask_prod{};
+
+    PreprocDotpGate() = default;
+    PreprocDotpGate(const TwoShare<R>& mask, const TwoShare<R>& mask_prod)
+        : PreprocGate<R>(mask), mask_prod(mask_prod) {}
+  };
+
 };  // namespace dmAsyncAsterisksGOD

@@ -395,6 +395,27 @@ namespace dmAsyncAsteriskGOD {
             break;
           }
 
+          case GateType::kDotprod: {
+            preproc_.gates[gate->out] = std::make_unique<PreprocDotpGate<Field>>();
+            const auto* g = static_cast<SIMDGate*>(gate.get());
+            Field mask_share_zero = Field(0);
+            TwoShare<Field>  mask_out;
+            // Generate a random mask for the output wire 
+            randSS(id_, rgen_, mask_out, mask_share_zero, false);
+            // Compute the product mask after OPE 
+            TwoShare<Field> mask_product;
+
+            for(size_t i = 0; i < g->in1.size(); i++) {
+              const auto& mask_ai = preproc_.gates[g->in1[i]]->mask;
+              const auto& mask_bi = preproc_.gates[g->in2[i]]->mask;
+
+              randomShareSecret(id_, rgen_, mask_ai, mask_bi, mask_product, inputToOPE[0]);
+            }
+                                  
+            preproc_.gates[gate->out] = std::move(std::make_unique<PreprocMultGate<Field>> (mask_out, mask_product));
+            break;
+          }
+
           default: {
             break;
           }
@@ -414,7 +435,7 @@ namespace dmAsyncAsteriskGOD {
         switch (gate->type) {
           case GateType::kMul: {
             auto* g = static_cast<FIn2Gate*>(gate.get()); 
-            auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
+            auto* pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
             // Compute the share of the masked output 
             auto mask_in1_in2_product_val = pre_mul->mask_prod.getValue();
             auto mask_in1_val = preproc_.gates[g->in1]->mask.getValue();
@@ -422,6 +443,26 @@ namespace dmAsyncAsteriskGOD {
             // Compute product share 
             multSS(mask_in1_val, mask_in2_val, mask_in1_in2_product_val, outputOfOPE, idx_outputOfOPE);
             pre_mul->mask_prod.setValue(mask_in1_in2_product_val);
+            break;
+          }
+
+          case GateType::kDotprod: {
+            auto* g = static_cast<SIMDGate*>(gate.get());
+            auto* pre_dotp = static_cast<PreprocDotpGate<Field> *>(preproc_.gates[gate->out].get());
+
+            Field mask_vector_product_val = Field(0);
+
+            // Compute a1b1 + ... + akbk
+            for(size_t i = 0; i < g->in1.size(); i++) {
+              const auto& mask_ai_val = preproc_.gates[g->in1[i]]->mask.getValue();
+              const auto& mask_bi_val = preproc_.gates[g->in2[i]]->mask.getValue();
+
+              Field mask_product_val;
+              multSS(mask_ai_val, mask_bi_val, mask_product_val, outputOfOPE, idx_outputOfOPE);
+              mask_vector_product_val += mask_product_val;
+            }
+
+            pre_dotp->mask_prod.setValue(mask_vector_product_val);
             break;
           }
   
