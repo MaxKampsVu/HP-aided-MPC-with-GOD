@@ -348,6 +348,9 @@ namespace dmAsyncAsteriskGOD {
                               message.data.end()
                 );
 
+                //print_vector(tp_layer_dig, "expected: ");
+                //print_vector(p_layer_dig, "received: ");
+
                 if(tp_layer_dig != p_layer_dig) {
                     std::cout << counter_tp << ": Received inconsistent shares from Party " << message.receiver_id << std::endl;
                 }

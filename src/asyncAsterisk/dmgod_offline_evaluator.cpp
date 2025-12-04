@@ -398,8 +398,8 @@ namespace dmAsyncAsteriskGOD {
           case GateType::kDotprod: {
             preproc_.gates[gate->out] = std::make_unique<PreprocDotpGate<Field>>();
             const auto* g = static_cast<SIMDGate*>(gate.get());
-            Field mask_share_zero = Field(0);
             TwoShare<Field>  mask_out;
+            Field mask_share_zero = Field(0);
             // Generate a random mask for the output wire 
             randSS(id_, rgen_, mask_out, mask_share_zero, false);
             // Compute the product mask after OPE 
@@ -508,6 +508,22 @@ namespace dmAsyncAsteriskGOD {
             break;
           }
 
+          case GateType::kDotprod: {
+            if (id_!=0) {     
+              auto* pre_gate = preproc_.gates[gate->out].get();
+              auto* pre_dotp = static_cast<PreprocDotpGate<Field> *>(preproc_.gates[gate->out].get());
+              auto mask = pre_gate->mask.getValue();
+              auto mask_prod = pre_dotp->mask_prod.getValue(); 
+              inputToOPE[1].push_back(mask);
+              inputToOPE[1].push_back(mask_prod);
+            }
+            else {
+              inputToOPE[1].push_back(key_);
+              inputToOPE[1].push_back(key_);
+            }
+            break;
+          }
+
           default: {
             break;
           }
@@ -564,6 +580,14 @@ namespace dmAsyncAsteriskGOD {
             auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
             pre_gate->mask.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
             pre_mul->mask_prod.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
+            break;
+          }
+
+          case GateType::kDotprod: {
+            auto* pre_gate = preproc_.gates[gate->out].get();
+            auto* pre_dotp = static_cast<PreprocDotpGate<Field> *>(preproc_.gates[gate->out].get());
+            pre_gate->mask.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
+            pre_dotp->mask_prod.setMACComponent(outputOfOPE[idx_outputOfOPE++]);
             break;
           }
   
