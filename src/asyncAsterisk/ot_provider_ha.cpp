@@ -53,6 +53,17 @@ namespace asyncAsterisk {
   }
 
 
+  std::vector<Field> blockArrayToFields(emp::block* arr, size_t size) {
+    std::vector<Field> flat_result;
+
+    for (size_t i = 0; i < size; ++i) {
+      std::vector<Field> tmp = blockToFields(arr[i]);
+      flat_result.insert(flat_result.end(), tmp.begin(), tmp.end());
+    }
+
+    return flat_result;
+  }
+  
   void OTProviderHA::send(const Field* data0, const Field* data1, size_t length, PRG& prg, fieldDig& ot_dig) {
     auto* data = new emp::block[length];    
     ot_->send_cot(data, length);
@@ -70,6 +81,7 @@ namespace asyncAsterisk {
         pad[2 * (j - i)] = data[j];
         pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta; // TODO: make sure delta is the same 
       }
+      hashFields(blockArrayToFields(pad, 2 * ot_bsize)); // TODO: append once deterministic 
       ot_->mitccrh.hash<ot_bsize, 2>(pad);
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         upad[2 * j] = Field(tpad[4 * (j - i)]) + data0[j];
@@ -77,7 +89,7 @@ namespace asyncAsterisk {
         
       }
     }
-    
+    hashFields(upad); // TODO: append once deterministic 
     ot_dig = hashFields(blockToFields(s)); // TODO: append upad 
     sendFieldElements(upad.data(), 2 * sizeof(Field) * length);
     delete[] data;
@@ -106,7 +118,7 @@ namespace asyncAsterisk {
   }
 
   std::vector<Field> OTProviderHA::multiplySendOnline(const std::vector<Field>& inputs, PRG& prg, fieldDig& ot_dig) {
-      size_t num_bits = sizeof(Field) * 8;
+    size_t num_bits = sizeof(Field) * 8;
     size_t num_blocks = num_bits * inputs.size();
   
     std::vector<Field> vrand(num_blocks);
@@ -177,12 +189,14 @@ namespace asyncAsterisk {
         pad[2 * (j - i)] = data[j];
         pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta; // TODO: make sure Delta is the same 
       }
+      hashFields(blockArrayToFields(pad, 2 * ot_bsize)); // TODO: append once deterministic 
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         upad[2 * j] = Field(tpad[4 * (j - i)]) + data0[j];
         upad[2 * j + 1] = Field(tpad[4 * (j - i) + 2]) + data1[j];
       }
     }
 
+    hashFields(upad); // TODO: append once deterministic 
     ot_dig = hashFields(blockToFields(s)); // TODO: append upad 
     delete[] data;
     return shares;
