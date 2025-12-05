@@ -13,11 +13,11 @@ latency=200 # latency in milliseconds
 
 threads=64
 
-echo "Running Asynchronous Asterisk GOD MPC (Dishonest Majority)"
+echo "Running Asynchronous Asterisk GOD offline phase (Dishonest Majority)"
 echo "*****************************************************************"
-pkill -f "dm_async_asterisk_god_mpc"
-run_app=./benchmarks/dm_async_asterisk_god_mpc
-dir=~/benchmark_data/dm_async_asterisk_god_mpc
+pkill -f "dm_async_asterisk_god_offline"
+run_app=./benchmarks/dm_async_asterisk_god_offline
+dir=~/benchmark_data/dm_async_asterisk_god_offline
 
 # rm -rf $dir/*.log $dir/g*.json
 mkdir -p $dir

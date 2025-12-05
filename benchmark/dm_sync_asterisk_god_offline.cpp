@@ -5,6 +5,7 @@
 #include "dmgod_online_evaluator.h"
 
 using namespace dmAsyncAsteriskGOD;
+using json = nlohmann::json;
 namespace bpo = boost::program_options;
 
 Circuit<Field> generateCircuit(size_t gates_per_level, size_t depth) {
@@ -32,6 +33,7 @@ Circuit<Field> generateCircuit(size_t gates_per_level, size_t depth) {
     return circ;
 }
 
+
 void benchmark(const bpo::variables_map& opts) {
     bool save_output = false;
     std::string save_file;
@@ -46,15 +48,13 @@ void benchmark(const bpo::variables_map& opts) {
     auto pid = opts["pid"].as<size_t>();
     auto security_param = opts["security-param"].as<size_t>();
     auto threads = opts["threads"].as<size_t>();
-    auto latency = opts["latency"].as<size_t>();
     auto seed = opts["seed"].as<size_t>();
+    auto repeat = opts["repeat"].as<size_t>();
     auto port = opts["port"].as<int>();
 
-    initNTL(threads);
-
-    std::shared_ptr<NetIOMP> network = nullptr;
+    std::shared_ptr<io::NetIOMP> network = nullptr;
     if (opts["localhost"].as<bool>()) {
-        network = std::make_shared<NetIOMP>(pid, nP+1, port, nullptr, true, latency);
+        network = std::make_shared<io::NetIOMP>(pid, nP+1, port, nullptr, true);
     }
     else {
         std::ifstream fnet(opts["net-config"].as<std::string>());
@@ -73,7 +73,7 @@ void benchmark(const bpo::variables_map& opts) {
             ip[i] = ipaddress[i].data();
         }
 
-        network = std::make_shared<NetIOMP>(pid, nP+1, port, ip.data(), false, latency);
+        network = std::make_shared<io::NetIOMP>(pid, nP+1, port, ip.data(), false);
     }
 
     json output_data;
@@ -83,7 +83,8 @@ void benchmark(const bpo::variables_map& opts) {
                                 {"pid", pid},
                                 {"security_param", security_param},
                                 {"threads", threads},
-                                {"seed", seed}};
+                                {"seed", seed},
+                                {"repeat", repeat}};
     output_data["benchmarks"] = json::array();
 
     std::cout << "--- Details ---\n";
@@ -97,43 +98,46 @@ void benchmark(const bpo::variables_map& opts) {
     std::cout << circ << std::endl;
     
 
-    std::unordered_map<wire_t, int> input_pid_map;
-    std::unordered_map<wire_t, Field> input_map;
+    std::unordered_map<utils::wire_t, int> input_pid_map;
+    std::unordered_map<utils::wire_t, Field> input_map;
     for (const auto& g : circ.gates_by_level[0]) {
-        if (g->type == GateType::kInp) {
-            input_pid_map[g->out] = 1;
-            input_map[g->out] = 5;
+        if (g->type == utils::GateType::kInp) {
+        input_pid_map[g->out] = 1;
+        input_map[g->out] = 5;
         }
     }
 
-    StatsPoint start(*network);
+    emp::PRG prg(&emp::zero_block, seed);
+    
 
-    PreprocCircuit<Field> preproc;
-    {
-        constexpr bool run_async = true;
+    for (size_t r = 0; r < repeat; ++r) {
+        constexpr bool run_async = false;
         OfflineEvaluator off_eval(nP, pid, security_param, network, network, circ, threads, seed, run_async);
-        preproc = off_eval.run(input_pid_map);
+        
+        network->sync();
+        
+        StatsPoint start(*network);
+        PreprocCircuit<Field> preproc;
+        {
+            constexpr bool run_async = false;
+            preproc = off_eval.run(input_pid_map);
+        }    
+        
+        StatsPoint end(*network);
+        auto rbench = end - start;
+        output_data["benchmarks"].push_back(rbench);
+
+        size_t bytes_sent = 0;
+        for (const auto& val : rbench["communication"]) {
+            bytes_sent += val.get<int64_t>();
+        }
+
+        std::cout << "--- Repetition " << r + 1 << " ---\n";
+        std::cout << "time: " << rbench["time"] << " ms\n";
+        std::cout << "sent: " << bytes_sent << " bytes\n";
+
+        std::cout << std::endl;
     }
-
-    {
-        OnlineEvaluator eval(nP, pid, security_param, network, std::move(preproc), circ, threads, seed);
-        auto res = eval.evaluateCircuit(input_map);
-    }    
-    
-    StatsPoint end(*network);
-    
-    auto rbench = end - start;
-    output_data["benchmarks"].push_back(rbench);
-
-    size_t bytes_sent = 0;
-    for (const auto& val : rbench["communication"]) {
-        bytes_sent += val.get<int64_t>();
-    }
-
-    std::cout << "time: " << rbench["time"] << " ms\n";
-    std::cout << "sent: " << bytes_sent << " bytes\n";
-
-    std::cout << std::endl;
     output_data["stats"] = {{"peak_virtual_memory", peakVirtualMemory()},
                             {"peak_resident_set_size", peakResidentSetSize()}};
 
@@ -157,19 +161,20 @@ bpo::options_description programOptions() {
         ("num-parties,n", bpo::value<size_t>()->required(), "Number of parties.")
         ("pid,p", bpo::value<size_t>()->required(), "Party ID.")
         ("security-param", bpo::value<size_t>()->default_value(128), "Security parameter in bits.")
-        ("threads,t", bpo::value<size_t>()->default_value(64), "Number of threads (recommended 6).")
-        ("latency,l", bpo::value<size_t>()->default_value(0), "Latency in ms (recommended 0).")
+        ("threads,t", bpo::value<size_t>()->default_value(6), "Number of threads (recommended 6).")
         ("seed", bpo::value<size_t>()->default_value(200), "Value of the random seed.")
         ("net-config", bpo::value<std::string>(), "Path to JSON file containing network details of all parties.")
         ("localhost", bpo::bool_switch(), "All parties are on same machine.")
         ("port", bpo::value<int>()->default_value(10000), "Base port for networking.")
-        ("output,o", bpo::value<std::string>(), "File to save benchmarks.");
+        ("output,o", bpo::value<std::string>(), "File to save benchmarks.")
+        ("repeat,r", bpo::value<size_t>()->default_value(1), "Number of times to run benchmarks.");
 
   return desc;
 }
 // clang-format on
 
 int main(int argc, char* argv[]) {
+    ZZ_p::init(conv<ZZ>("17816577890427308801"));
     auto prog_opts(programOptions());
 
     bpo::options_description cmdline(
@@ -202,6 +207,17 @@ int main(int argc, char* argv[]) {
 
     try {
         bpo::notify(opts);
+
+        // Check if output file already exists.
+        /*if (opts.count("output") != 0) {
+            std::ifstream ftemp(opts["output"].as<std::string>());
+            if (ftemp.good()) {
+                ftemp.close();
+                throw std::runtime_error("Output file aready exists.");
+            }
+            ftemp.close();
+        }*/
+
         if (!opts["localhost"].as<bool>() && (opts.count("net-config") == 0)) {
             throw std::runtime_error("Expected one of 'localhost' or 'net-config'");
         }

@@ -52,15 +52,17 @@ void benchmark(const bpo::variables_map& opts) {
 
     initNTL(threads);
 
-    std::shared_ptr<NetIOMP> network = nullptr;
+    std::shared_ptr<NetIOMP> network_offline = nullptr;
+    std::shared_ptr<NetIOMP> network_online = nullptr;
     if (opts["localhost"].as<bool>()) {
-        network = std::make_shared<NetIOMP>(pid, nP+1, port, nullptr, true, latency);
+        network_offline = std::make_shared<NetIOMP>(pid, nP+1, port, nullptr, true, latency);
+        network_online = std::make_shared<NetIOMP>(pid, nP+1, port, nullptr, true, latency);
     }
     else {
         std::ifstream fnet(opts["net-config"].as<std::string>());
         if (!fnet.good()) {
         fnet.close();
-        throw std::runtime_error("Could not open network config file");
+        throw std::runtime_error("Could not open network_offline config file");
         }
         json netdata;
         fnet >> netdata;
@@ -73,7 +75,8 @@ void benchmark(const bpo::variables_map& opts) {
             ip[i] = ipaddress[i].data();
         }
 
-        network = std::make_shared<NetIOMP>(pid, nP+1, port, ip.data(), false, latency);
+        network_offline = std::make_shared<NetIOMP>(pid, nP+1, port, ip.data(), false, latency);
+        network_online = std::make_shared<NetIOMP>(pid, nP+1, port, nullptr, true, latency);
     }
 
     json output_data;
@@ -106,21 +109,23 @@ void benchmark(const bpo::variables_map& opts) {
         }
     }
 
-    StatsPoint start(*network);
-
     PreprocCircuit<Field> preproc;
     {
         constexpr bool run_async = true;
-        OfflineEvaluator off_eval(nP, pid, security_param, network, network, circ, threads, seed, run_async);
+        OfflineEvaluator off_eval(nP, pid, security_param, network_offline, network_offline, circ, threads, seed, run_async);
         preproc = off_eval.run(input_pid_map);
     }
 
+    //Only time online phase 
+
+    StatsPoint start(*network_online);
+
     {
-        OnlineEvaluator eval(nP, pid, security_param, network, std::move(preproc), circ, threads, seed);
+        OnlineEvaluator eval(nP, pid, security_param, network_online, std::move(preproc), circ, threads, seed);
         auto res = eval.evaluateCircuit(input_map);
     }    
     
-    StatsPoint end(*network);
+    StatsPoint end(*network_online);
     
     auto rbench = end - start;
     output_data["benchmarks"].push_back(rbench);

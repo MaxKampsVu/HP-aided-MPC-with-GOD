@@ -47,7 +47,7 @@ namespace dmAsyncAsteriskGOD {
         ~OfflineEvaluator();
 
         void keyGen();
-        static void randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire);
+        static void randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share);
         static void randomShareSecret(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
             TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
         static void randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);

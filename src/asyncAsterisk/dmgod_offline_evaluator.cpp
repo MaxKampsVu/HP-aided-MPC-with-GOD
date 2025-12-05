@@ -18,9 +18,8 @@ namespace dmAsyncAsteriskGOD {
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed, bool run_async) 
     : nP_(nP), id_(id), security_param_(security_param), rgen_(id, nP, seed), network_(std::move(network1)), 
     network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(2, false), 
-    chunk_size_(50000), inputToOPE(2), run_async_(true)
+    chunk_size_(50000), inputToOPE(2), run_async_(run_async)
   {
-
     // Threadpool setup 
     if (run_async_) {
         tpool_ = std::make_shared<ThreadPool>(threads);
@@ -131,7 +130,7 @@ namespace dmAsyncAsteriskGOD {
     }
   }
 
-  void OfflineEvaluator::randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire) {
+  void OfflineEvaluator::randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share) {
     // TP 
     if(pid == 0) {      
       Field valSh;
@@ -381,15 +380,11 @@ namespace dmAsyncAsteriskGOD {
             const auto* g = static_cast<FIn2Gate*>(gate.get());
             const auto& mask_in1 = preproc_.gates[g->in1]->mask;
             const auto& mask_in2 = preproc_.gates[g->in2]->mask;
+
             TwoShare<Field> mask_out; 
-            Field mask_share_zero = Field(0);
-            bool isOutputWire = false;
-            if (std::find(circ_.outputs.begin(), circ_.outputs.end(),g->out)!=circ_.outputs.end())
-              isOutputWire = true;
-            // Generate a random mask for the output wire 
-            randSS(id_, rgen_, mask_out, mask_share_zero, isOutputWire);
+            randSS(id_, rgen_, mask_out);
+
             TwoShare<Field> mask_product;
-            // Compute cross terms with HP for mask_product = mask_in1 * mask_in2  
             randomShareSecret(id_, rgen_, mask_in1, mask_in2, mask_product, inputToOPE[0]);
             preproc_.gates[gate->out] = std::move(std::make_unique<PreprocMultGate<Field>> (mask_out, mask_product));
             break;
@@ -398,13 +393,12 @@ namespace dmAsyncAsteriskGOD {
           case GateType::kDotprod: {
             preproc_.gates[gate->out] = std::make_unique<PreprocDotpGate<Field>>();
             const auto* g = static_cast<SIMDGate*>(gate.get());
-            TwoShare<Field>  mask_out;
-            Field mask_share_zero = Field(0);
-            // Generate a random mask for the output wire 
-            randSS(id_, rgen_, mask_out, mask_share_zero, false);
-            // Compute the product mask after OPE 
-            TwoShare<Field> mask_product;
 
+            TwoShare<Field>  mask_out;
+            randSS(id_, rgen_, mask_out);
+        
+
+            TwoShare<Field> mask_product;
             for(size_t i = 0; i < g->in1.size(); i++) {
               const auto& mask_ai = preproc_.gates[g->in1[i]]->mask;
               const auto& mask_bi = preproc_.gates[g->in2[i]]->mask;
