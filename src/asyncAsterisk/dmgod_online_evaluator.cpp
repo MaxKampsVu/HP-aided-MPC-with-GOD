@@ -113,6 +113,29 @@ namespace dmAsyncAsteriskGOD {
                     break;
                 }
 
+                case GateType::kMul3: {
+                    auto *g = static_cast<FIn3Gate*>(gate.get());
+                    auto *pre_out = static_cast<PreprocMult3Gate<Field>*>(preproc_.gates[g->out].get());
+                    q_val_[g->out] = 0;
+
+                    auto &m_a = preproc_.gates[g->in1]->mask;
+                    auto &m_b = preproc_.gates[g->in2]->mask;
+                    auto &m_c = preproc_.gates[g->in2]->mask;
+                    auto &m_ab = pre_out->mask_ab;
+                    auto &m_ac = pre_out->mask_ab;
+                    auto &m_bc = pre_out->mask_ab;
+                    auto &m_abc = pre_out->mask_abc;
+                    auto &m_out = pre_out->mask;
+                    
+                    // auto q_share = m_prod + m_out - m_in1 * wires_[g->in2] - m_in2 * wires_[g->in1];   
+                    // q_share.add(wires_[g->in1] * wires_[g->in2] * wires_[g->in3], id_);                    
+                    
+                    // q_sh_[g->out] = q_share;
+                    // mult_nonTP.push_back(q_share.getValue());
+                    // mac_components.push_back(q_share.getMACComponent());
+                    break;
+                }
+
                 case GateType::kDotprod: {
                     auto *g = static_cast<SIMDGate*>(gate.get());
                     auto *pre_out = static_cast<PreprocDotpGate<Field>*>(preproc_.gates[g->out].get());

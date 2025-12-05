@@ -36,7 +36,7 @@ namespace dmAsyncAsteriskGOD {
         std::size_t chunk_size_;
         std::mutex mtx_;
         std::condition_variable cv_;
-        std::array<std::condition_variable, 2> cv_start_ot_;
+        std::array<std::condition_variable, 3> cv_start_ot_;
         std::vector<bool> start_ot_;
         std::vector<std::vector<Field>> inputToOPE;
         bool run_async_;
@@ -47,13 +47,25 @@ namespace dmAsyncAsteriskGOD {
         ~OfflineEvaluator();
 
         void keyGen();
-        static void randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire);
+        static void randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share);
         static void randomShareSecret(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
             TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
+
+        static void randomShareSecret3(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
+            TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
+
         static void randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
         bool verifyOPEMsgs(std::vector<fieldDig> chunk_digs, Field sender_id);
         void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
-        void multSS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
+
+        void mult2SS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
+
+        void mult3SS(const Field& share_a, 
+                    const Field& share_b,
+                    const Field& share_c, 
+                    
+                    Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
+
         void prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map);
         void prepareMaskMACs();
         void setWireMasks(const std::unordered_map<wire_t, int>& input_pid_map);

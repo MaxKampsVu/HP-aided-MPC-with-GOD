@@ -17,8 +17,8 @@ namespace dmAsyncAsteriskGOD {
   OfflineEvaluator::OfflineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network1, 
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed, bool run_async) 
     : nP_(nP), id_(id), security_param_(security_param), rgen_(id, nP, seed), network_(std::move(network1)), 
-    network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(2, false), 
-    chunk_size_(50000), inputToOPE(2), run_async_(true)
+    network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(3, false), 
+    chunk_size_(50000), inputToOPE(3), run_async_(true)
   {
 
     // Threadpool setup 
@@ -72,7 +72,13 @@ namespace dmAsyncAsteriskGOD {
     auto spawn_worker = [&](size_t pid, ThreadPool& pool) {
         pool.enqueue([&, pid]() {
             ZZ_p_ctx.restore();
-            for (size_t count = 0; count < 2; count++) {
+            /* 4 rounds of OPEs
+             * terms for mult2 gates 
+             * terms for mult3 gates (based on mult2)
+             * terms for mult4 gates (based on mult3)
+             * authenticating mult crossterms masks and input/output masks 
+             */
+            for (size_t count = 0; count < 3; count++) {
                 std::vector<Field> sharesVec;
                 std::vector<fieldDig> chunk_digs;
 
@@ -131,7 +137,7 @@ namespace dmAsyncAsteriskGOD {
     }
   }
 
-  void OfflineEvaluator::randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share, Field& mask_share_zero, bool isOutputWire) {
+  void OfflineEvaluator::randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share) {
     // TP 
     if(pid == 0) {      
       Field valSh;
@@ -321,17 +327,14 @@ namespace dmAsyncAsteriskGOD {
     verifyOPEMsgs(chunk_digs, sender_id);
   }
 
-  void OfflineEvaluator::multSS(const Field& share1_val, const Field& share2_val, Field& output_val, 
+  void OfflineEvaluator::mult2SS(const Field& share1_val, const Field& share2_val, Field& output_val, 
     const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE) {
       output_val = share1_val * share2_val + outputOfOPE[idx_outputOfOPE] + outputOfOPE[idx_outputOfOPE+1];
       idx_outputOfOPE += 2;
   }
 
   void OfflineEvaluator::prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map) {
-    std::vector<Field> buffer; 
-    size_t idx_buffer=0; 
-    size_t buffer_num=0;
-
+    // MUL2 OPEs and input masks 
     for (const auto& level : circ_.gates_by_level) {
       for (const auto& gate : level) {
         switch (gate->type) {
@@ -382,12 +385,9 @@ namespace dmAsyncAsteriskGOD {
             const auto& mask_in1 = preproc_.gates[g->in1]->mask;
             const auto& mask_in2 = preproc_.gates[g->in2]->mask;
             TwoShare<Field> mask_out; 
-            Field mask_share_zero = Field(0);
-            bool isOutputWire = false;
-            if (std::find(circ_.outputs.begin(), circ_.outputs.end(),g->out)!=circ_.outputs.end())
-              isOutputWire = true;
+        
             // Generate a random mask for the output wire 
-            randSS(id_, rgen_, mask_out, mask_share_zero, isOutputWire);
+            randSS(id_, rgen_, mask_out);
             TwoShare<Field> mask_product;
             // Compute cross terms with HP for mask_product = mask_in1 * mask_in2  
             randomShareSecret(id_, rgen_, mask_in1, mask_in2, mask_product, inputToOPE[0]);
@@ -395,13 +395,35 @@ namespace dmAsyncAsteriskGOD {
             break;
           }
 
+          case GateType::kMul3: {
+            // Create the output wire mask share and initialize it later 
+            preproc_.gates[gate->out] = std::make_unique<PreprocMult3Gate<Field>>();
+            const auto* g = static_cast<FIn3Gate*>(gate.get());
+            const auto& mask_a = preproc_.gates[g->in1]->mask;
+            const auto& mask_b = preproc_.gates[g->in2]->mask;
+            const auto& mask_c = preproc_.gates[g->in3]->mask;
+            TwoShare<Field> mask_out; 
+
+            // Generate a random mask for the output wire 
+            randSS(id_, rgen_, mask_out);
+
+            TwoShare<Field> mask_ab, mask_ac, mask_bc;
+            // Compute cross terms with HP   
+            randomShareSecret(id_, rgen_, mask_a, mask_b, mask_ab, inputToOPE[0]);
+            randomShareSecret(id_, rgen_, mask_a, mask_c, mask_ac, inputToOPE[0]);
+            randomShareSecret(id_, rgen_, mask_b, mask_c, mask_bc, inputToOPE[0]);
+
+            preproc_.gates[gate->out] = std::move(std::make_unique<PreprocMult3Gate<Field>> (mask_out, mask_ab, mask_ac, mask_bc));
+            break;
+          }
+
           case GateType::kDotprod: {
             preproc_.gates[gate->out] = std::make_unique<PreprocDotpGate<Field>>();
             const auto* g = static_cast<SIMDGate*>(gate.get());
             TwoShare<Field>  mask_out;
-            Field mask_share_zero = Field(0);
+
             // Generate a random mask for the output wire 
-            randSS(id_, rgen_, mask_out, mask_share_zero, false);
+            randSS(id_, rgen_, mask_out);
             // Compute the product mask after OPE 
             TwoShare<Field> mask_product;
 
@@ -429,6 +451,8 @@ namespace dmAsyncAsteriskGOD {
     
     runOPE(inputToOPE[0], outputOfOPE, 0);
 
+    std::cout << "Finished first OPE" << std::endl;
+
     // After OLEs compute output mask on multiplication gates 
     for (const auto& level : circ_.gates_by_level) {
       for (const auto& gate : level) {
@@ -441,8 +465,25 @@ namespace dmAsyncAsteriskGOD {
             auto mask_in1_val = preproc_.gates[g->in1]->mask.getValue();
             auto mask_in2_val = preproc_.gates[g->in2]->mask.getValue();
             // Compute product share 
-            multSS(mask_in1_val, mask_in2_val, mask_in1_in2_product_val, outputOfOPE, idx_outputOfOPE);
+            mult2SS(mask_in1_val, mask_in2_val, mask_in1_in2_product_val, outputOfOPE, idx_outputOfOPE);
             pre_mul->mask_prod.setValue(mask_in1_in2_product_val);
+            break;
+          }
+
+          case GateType::kMul3: {
+            auto* g = static_cast<FIn3Gate*>(gate.get()); 
+            auto* pre_mul3 = static_cast<PreprocMult3Gate<Field> *>(preproc_.gates[gate->out].get());
+            const auto& mask_a_val = preproc_.gates[g->in1]->mask.getValue();
+            const auto& mask_b_val = preproc_.gates[g->in2]->mask.getValue();
+            const auto& mask_c_val = preproc_.gates[g->in3]->mask.getValue();
+
+            Field mask_ab_val, mask_ac_val, mask_bc_val;
+
+            mult2SS(mask_a_val, mask_b_val, mask_ab_val, outputOfOPE, idx_outputOfOPE);
+            mult2SS(mask_a_val, mask_c_val, mask_ac_val, outputOfOPE, idx_outputOfOPE);
+            mult2SS(mask_b_val, mask_c_val, mask_bc_val, outputOfOPE, idx_outputOfOPE);
+
+            pre_mul3->setLength2Terms(TwoShare<Field>(mask_ab_val), TwoShare<Field>(mask_ac_val), TwoShare<Field>(mask_bc_val));
             break;
           }
 
@@ -458,7 +499,7 @@ namespace dmAsyncAsteriskGOD {
               const auto& mask_bi_val = preproc_.gates[g->in2[i]]->mask.getValue();
 
               Field mask_product_val;
-              multSS(mask_ai_val, mask_bi_val, mask_product_val, outputOfOPE, idx_outputOfOPE);
+              mult2SS(mask_ai_val, mask_bi_val, mask_product_val, outputOfOPE, idx_outputOfOPE);
               mask_vector_product_val += mask_product_val;
             }
 
@@ -472,6 +513,63 @@ namespace dmAsyncAsteriskGOD {
         }
       }
     }
+
+    outputOfOPE.clear();
+    outputOfOPE.shrink_to_fit();
+    idx_outputOfOPE = 0;
+
+    // Compute cross terms of length 3 for Mul3 and Mul4 
+
+    for (const auto& level : circ_.gates_by_level) {
+      for (const auto& gate : level) {
+        switch (gate->type) {
+            case GateType::kMul3: {
+            auto* g = static_cast<FIn3Gate*>(gate.get()); 
+            auto* pre_mul3 = static_cast<PreprocMult3Gate<Field> *>(preproc_.gates[gate->out].get());
+            const auto& mask_a = preproc_.gates[g->in1]->mask;
+            const auto& mask_bc = pre_mul3->mask_bc;
+            TwoShare<Field> mask_abc;
+
+            randomShareSecret(id_, rgen_, mask_a, mask_bc, mask_abc, inputToOPE[1]);
+            break;
+          }
+
+          default: {
+            break;
+          }
+        }
+      }
+    }
+    
+    // Run ope for length 3 crossterms 
+    runOPE(inputToOPE[1], outputOfOPE, 1);
+
+    std::cout << "Finished second OPE" << std::endl;
+
+    // Assign length 3 crossterms 
+    for (const auto& level : circ_.gates_by_level) {
+      for (const auto& gate : level) {
+        switch (gate->type) {
+          case GateType::kMul3: {
+                auto* g = static_cast<FIn3Gate*>(gate.get()); 
+                auto* pre_mul3 = static_cast<PreprocMult3Gate<Field> *>(preproc_.gates[gate->out].get());
+                const auto& mask_a_val = preproc_.gates[g->in1]->mask.getValue();
+                const auto& mask_bc_val = pre_mul3->mask_bc.getValue();
+
+                Field mask_abc_val;
+                mult2SS(mask_a_val, mask_bc_val, mask_abc_val, outputOfOPE, idx_outputOfOPE);
+
+                pre_mul3->setLength3Terms(TwoShare<Field>(mask_abc_val));
+                break;
+            }
+
+          default: {
+            break;
+          }
+        } 
+      }
+    }
+    
     outputOfOPE.clear();
     outputOfOPE.shrink_to_fit();
   }
@@ -484,10 +582,10 @@ namespace dmAsyncAsteriskGOD {
             if (id_!=0) {      
               auto *pre_input = static_cast<PreprocInput<Field> *>(preproc_.gates[gate->out].get());
               auto mask = pre_input->mask.getValue();
-              inputToOPE[1].push_back(mask);
+              inputToOPE[2].push_back(mask);
             }
             else {
-              inputToOPE[1].push_back(key_);
+              inputToOPE[2].push_back(key_);
             }
             break;
           }
@@ -498,12 +596,12 @@ namespace dmAsyncAsteriskGOD {
               auto *pre_mul = static_cast<PreprocMultGate<Field> *>(preproc_.gates[gate->out].get());
               auto mask = pre_gate->mask.getValue();
               auto mask_prod = pre_mul->mask_prod.getValue(); 
-              inputToOPE[1].push_back(mask);
-              inputToOPE[1].push_back(mask_prod);
+              inputToOPE[2].push_back(mask);
+              inputToOPE[2].push_back(mask_prod);
             }
             else {
-              inputToOPE[1].push_back(key_);
-              inputToOPE[1].push_back(key_);
+              inputToOPE[2].push_back(key_);
+              inputToOPE[2].push_back(key_);
             }
             break;
           }
@@ -514,12 +612,12 @@ namespace dmAsyncAsteriskGOD {
               auto* pre_dotp = static_cast<PreprocDotpGate<Field> *>(preproc_.gates[gate->out].get());
               auto mask = pre_gate->mask.getValue();
               auto mask_prod = pre_dotp->mask_prod.getValue(); 
-              inputToOPE[1].push_back(mask);
-              inputToOPE[1].push_back(mask_prod);
+              inputToOPE[2].push_back(mask);
+              inputToOPE[2].push_back(mask_prod);
             }
             else {
-              inputToOPE[1].push_back(key_);
-              inputToOPE[1].push_back(key_);
+              inputToOPE[2].push_back(key_);
+              inputToOPE[2].push_back(key_);
             }
             break;
           }
@@ -534,7 +632,9 @@ namespace dmAsyncAsteriskGOD {
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
 
-    runOPE(inputToOPE[1], outputOfOPE, 1);
+    runOPE(inputToOPE[2], outputOfOPE, 2);
+
+    std::cout << "Finished third OPE" << std::endl;
 
     for (const auto& level : circ_.gates_by_level) {
       for (const auto& gate : level) {

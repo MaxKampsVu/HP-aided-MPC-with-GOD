@@ -5,6 +5,7 @@
 #include <boost/test/included/unit_test.hpp>
 #include "dmgod_offline_evaluator.h"
 #include "dmgod_online_evaluator.h"
+#include "circuit.h"
 
 using namespace dmAsyncAsteriskGOD;
 namespace bdata = boost::unit_test::data;
@@ -199,6 +200,68 @@ BOOST_AUTO_TEST_CASE(dotp2) {
     i++;
   }
 }
+
+
+// BOOST_AUTO_TEST_CASE(naivePrefixOr) {
+//   ZZ_pContext ZZ_p_ctx;
+//   ZZ_p_ctx.save();
+//   int nP = 5;
+//   auto seed_block = emp::makeBlock(0, 200);
+//   emp::PRG prg(&seed_block);
+//   std::mt19937 gen(rand());
+//   std::uniform_int_distribution<uint> distrib(0, TEST_DATA_MAX_VAL);
+//   Circuit<Field> circ;
+//   std::vector<wire_t> input_wires;
+//   std::unordered_map<wire_t, int> input_pid_map;
+//   std::unordered_map<wire_t, Field> inputs;
+
+//   auto prefixOR_circ = utils::Circuit<BoolRing>::generateParaPrefixOR().orderGatesByLevel();
+
+//   for (size_t i = 0; i < 2; ++i) {
+//     auto winp = circ.newInputWire();
+//     input_wires.push_back(winp);
+//     input_pid_map[winp] = 1;    
+//     inputs[winp] = Field(distrib(gen));
+//   }
+//   auto w_amb = circ.addGate(GateType::kMul, input_wires[0], input_wires[1]);  
+//   circ.setAsOutput(w_amb);  
+//   auto level_circ = circ.orderGatesByLevel();
+
+//   auto exp_output = circ.evaluate(inputs);
+
+//   std::vector<std::future<std::vector<Field>>> parties;
+//   parties.reserve(nP+1);
+//   for (int i = 0; i <= nP; ++i) {
+//       parties.push_back(std::async(std::launch::async, [&, i, input_pid_map, inputs]() {
+//       ZZ_p_ctx.restore();
+//       auto network1 = std::make_shared<NetIOMP>(i, nP+1, 10000, nullptr, true);
+//       auto network2 = std::make_shared<NetIOMP>(i, nP+1, 10000+100, nullptr, true);
+
+//       PreprocCircuit<Field> preproc;
+//       {
+//         OfflineEvaluator eval(nP, i, SECURITY_PARAM, network1, network2, level_circ, nP+1);
+//         preproc = eval.run(input_pid_map);
+//       }
+      
+//       std::vector<Field> res;
+//       {
+//         OnlineEvaluator online_eval(nP, i, SECURITY_PARAM, std::move(network1), std::move(preproc), level_circ, nP+1);      
+//         res = online_eval.evaluateCircuit(inputs);
+//       }
+      
+//       return res;      
+//     }));
+//   } 
+//   int i = 0;
+//   for (auto& p : parties) {
+//     if(i != 0) {
+//       auto output = p.get();
+//       BOOST_TEST(exp_output == output);
+//     }
+//     i++;
+//   }
+// }
+
 
 // BOOST_AUTO_TEST_CASE(depth_2_circuit) {
 //   ZZ_pContext ZZ_p_ctx;

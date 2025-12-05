@@ -60,4 +60,87 @@ namespace dmAsyncAsteriskGOD {
         : PreprocGate<R>(mask), mask_prod(mask_prod) {}
   };
 
+  template <class R>
+struct PreprocMult3Gate : public PreprocGate<R> {
+  // Secret shared product of inputs masks.
+  TwoShare<R> mask_ab{};
+  TwoShare<R> mask_ac{};
+  TwoShare<R> mask_bc{};
+  TwoShare<R> mask_abc{};
+
+  PreprocMult3Gate() = default;
+
+  PreprocMult3Gate(const TwoShare<R>& mask,
+                  const TwoShare<R>& mask_ab,
+                  const TwoShare<R>& mask_ac,
+                  const TwoShare<R>& mask_bc)
+      : PreprocGate<R>(mask), mask_ab(mask_ab),
+                              mask_ac(mask_ac),
+                              mask_bc(mask_bc) {}
+
+  void setLength2Terms(TwoShare<R> m_ab, TwoShare<R> m_ac, TwoShare<R> m_bc) {
+    mask_ab = m_ab;
+    mask_ac = m_ac;
+    mask_bc = m_bc;
+  }
+  
+  void setLength3Terms(TwoShare<R> m_abc) {
+    mask_abc = m_abc;
+  }
+
+  PreprocMult3Gate(const TwoShare<R>& mask,
+                  const TwoShare<R>& mask_ab,
+                  const TwoShare<R>& mask_ac,
+                  const TwoShare<R>& mask_bc,
+                  const TwoShare<R>& mask_abc)
+      : PreprocGate<R>(mask), mask_ab(mask_ab),
+                              mask_ac(mask_ac),
+                              mask_bc(mask_bc),
+                              mask_abc(mask_abc){}
+};
+
+
+template <class R>
+struct PreprocMult4Gate : public PreprocGate<R> {
+  // Secret shared product of inputs masks.
+  TwoShare<R> mask_abcd{};
+  TwoShare<R> mask_abc{};
+  TwoShare<R> mask_abd{};
+  TwoShare<R> mask_acd{};
+  TwoShare<R> mask_bcd{};
+  TwoShare<R> mask_ab{};
+  TwoShare<R> mask_ac{};
+  TwoShare<R> mask_ad{};
+  TwoShare<R> mask_bc{};
+  TwoShare<R> mask_bd{};
+  TwoShare<R> mask_cd{};
+
+
+  PreprocMult4Gate() = default;
+  PreprocMult4Gate(const TwoShare<R>& mask,
+                  const TwoShare<R>& mask_ab,
+                  const TwoShare<R>& mask_ac,
+                  const TwoShare<R>& mask_ad,
+                  const TwoShare<R>& mask_bc,
+                  const TwoShare<R>& mask_bd,
+                  const TwoShare<R>& mask_cd,
+                  const TwoShare<R>& mask_abc,
+                  const TwoShare<R>& mask_abd,
+                  const TwoShare<R>& mask_acd,
+                  const TwoShare<R>& mask_bcd,
+                  const TwoShare<R>& mask_abcd)
+      : PreprocGate<R>(mask), mask_ab(mask_ab),
+                              mask_ac(mask_ac),
+                              mask_ad(mask_ad),
+                              mask_bc(mask_bc),
+                              mask_bd(mask_bd),
+                              mask_cd(mask_cd), 
+                              mask_abc(mask_abc),
+                              mask_abd(mask_abd),
+                              mask_acd(mask_acd),
+                              mask_bcd(mask_bcd),
+                              mask_abcd(mask_abcd) {}
+};
+
+
 };  // namespace dmAsyncAsterisksGOD

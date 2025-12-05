@@ -398,18 +398,18 @@ class Circuit {
             break;
           }
 
-          case GateType::kMul3: {
-            auto* g = static_cast<FIn3Gate*>(gate.get());
-            wires[g->out] = wires[g->in1] * wires[g->in2] * wires[g->in3];
-            break;
-          }
+          // case GateType::kMul3: {
+          //   auto* g = static_cast<FIn3Gate*>(gate.get());
+          //   wires[g->out] = wires[g->in1] * wires[g->in2] * wires[g->in3];
+          //   break;
+          // }
 
-          case GateType::kMul4: {
-            auto* g = static_cast<FIn4Gate*>(gate.get());
-            wires[g->out] = wires[g->in1] * wires[g->in2] 
-                              * wires[g->in3] * wires[g->in4];
-            break;
-          }
+          // case GateType::kMul4: {
+          //   auto* g = static_cast<FIn4Gate*>(gate.get());
+          //   wires[g->out] = wires[g->in1] * wires[g->in2] 
+          //                     * wires[g->in3] * wires[g->in4];
+          //   break;
+          // }
 
           case GateType::kAdd: {
             auto* g = static_cast<FIn2Gate*>(gate.get());
@@ -474,17 +474,17 @@ class Circuit {
             break;
           }
 
-          case GateType::kMsb: {
-            auto* g = static_cast<FIn1Gate*>(gate.get());
+          // case GateType::kMsb: {
+          //   auto* g = static_cast<FIn1Gate*>(gate.get());
 
-            if constexpr (std::is_same_v<R, BoolRing>) {
-              wires[g->out] = wires[g->in];
-            } else {
-              std::vector<BoolRing> bin = bitDecomposeTwo(wires[g->in]);
-              wires[g->out] = bin[63].val();
-            }
-            break;
-          }
+          //   if constexpr (std::is_same_v<R, BoolRing>) {
+          //     wires[g->out] = wires[g->in];
+          //   } else {
+          //     std::vector<BoolRing> bin = bitDecomposeTwo(wires[g->in]);
+          //     wires[g->out] = bin[63].val();
+          //   }
+          //   break;
+          // }
 
           case GateType::kDotprod: {
             auto* g = static_cast<SIMDGate*>(gate.get());
@@ -526,6 +526,84 @@ class Circuit {
 
     return outputs;
   }
+
+  // Create a PrefixOR cirquit (for dmgod)
+  static Circuit generatePrefixOR() {
+    Circuit circ;
+    size_t k = 64;
+    std::vector<wire_t> input(k);
+    std::vector<wire_t> output(k);
+
+    for (int i = 0; i < k; i++) {
+        input[i] = circ.newInputWire();
+    }
+
+    R zero = 0;
+    R one = 1;
+    
+    std::vector<wire_t> j(k);
+    j = std::move(input);
+
+    // (a_0 xor 1)
+    wire_t out_j_minus_1 = circ.addConstOpGate(GateType::kConstAdd, j[0], one);
+    
+    // Assign output 0: a_0
+    output[0] = input[0];
+
+    for(size_t j = 1; j < k; j++) {
+      // (a_j xor 1)
+      wire_t add_j = circ.addConstOpGate(GateType::kConstAdd, input[j], one);
+
+      // (a_j xor 1) * prev layers 
+      wire_t out_j = circ.addGate(GateType::kConstMul, out_j_minus_1, add_j);
+
+      // Assign output j: ((a_j xor 1) * (a_j-1 xor 1) * ... * (a_0 xor 1)) xor 1 
+      output[j] = circ.addConstOpGate(GateType::kConstAdd, out_j, one);
+
+      std::swap(out_j, out_j_minus_1);
+    }          
+
+    for(auto bj : output) {
+      circ.setAsOutput(bj);
+    }
+
+    return circ;
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Asterisk methods 
 
    static Circuit generatePrefixAND() {
     Circuit circ;
