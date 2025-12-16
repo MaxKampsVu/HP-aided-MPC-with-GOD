@@ -52,11 +52,13 @@ namespace dmAsyncAsteriskGOD {
             TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
         static void randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
         bool verifyOPEMsgs(std::vector<fieldDig> chunk_digs, Field sender_id);
-        void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
+        void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count, bool verifyHA);
         void multSS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
         void prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map);
         void prepareMaskMACs();
         void setWireMasks(const std::unordered_map<wire_t, int>& input_pid_map);
         PreprocCircuit<Field> run(const std::unordered_map<wire_t, int>& input_pid_map);
+
+        void justRunOpe(size_t num_input_gates, size_t num_mul_gates);
     };
 }; // namespace dmAsyncAsteriskGOD

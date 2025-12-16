@@ -286,7 +286,7 @@ namespace dmAsyncAsteriskGOD {
     return true;
   }
 
-  void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector<Field>& outputOfOPE, size_t count) {
+  void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector<Field>& outputOfOPE, size_t count, bool verifyHA) {
     std::vector<fieldDig> chunk_digs;
     Field sender_id = Field(-1);
 
@@ -317,7 +317,9 @@ namespace dmAsyncAsteriskGOD {
       chunk_digs = OPE_res.chunk_digs;
       sender_id = Field(receiver_pid);
     }
-    verifyOPEMsgs(chunk_digs, sender_id);
+    if(verifyHA) {
+      verifyOPEMsgs(chunk_digs, sender_id);
+    }
   }
 
   void OfflineEvaluator::multSS(const Field& share1_val, const Field& share2_val, Field& output_val, 
@@ -421,7 +423,7 @@ namespace dmAsyncAsteriskGOD {
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
     
-    runOPE(inputToOPE[0], outputOfOPE, 0);
+    runOPE(inputToOPE[0], outputOfOPE, 0, true);
 
     // After OLEs compute output mask on multiplication gates 
     for (const auto& level : circ_.gates_by_level) {
@@ -528,7 +530,8 @@ namespace dmAsyncAsteriskGOD {
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
 
-    runOPE(inputToOPE[1], outputOfOPE, 1);
+
+    runOPE(inputToOPE[1], outputOfOPE, 1, true);
 
     for (const auto& level : circ_.gates_by_level) {
       for (const auto& gate : level) {
@@ -604,6 +607,21 @@ namespace dmAsyncAsteriskGOD {
   PreprocCircuit<Field> OfflineEvaluator::run(const std::unordered_map<wire_t, int>& input_pid_map) {
       setWireMasks(input_pid_map);
       return std::move(preproc_);    
+  }
+
+  void OfflineEvaluator::justRunOpe(size_t num_input_gates, size_t num_mul_gates) {
+    // s (tags on crossterms of multiplication gates)
+    size_t num_ope_first_round = 2 * num_mul_gates; 
+    inputToOPE[0] = std::vector<Field>(num_ope_first_round);  
+    std::vector<Field> outputOfOPE; 
+    runOPE(inputToOPE[0], outputOfOPE, 0, false);
+    outputOfOPE.clear();
+    outputOfOPE.shrink_to_fit();      
+
+    // Second round (tags output wire of input + tags on output wire of multiplication + tags xy term multiplication)
+    size_t num_ope_second_round = num_input_gates + num_mul_gates + num_mul_gates;
+    inputToOPE[1] = std::vector<Field>(num_ope_second_round);  
+    runOPE(inputToOPE[1], outputOfOPE, 1, false);  
   }
 
 }; // namespace dmAsyncAsteriskGOD

@@ -8,6 +8,7 @@ macro(add_benchmark source_name)
     list(APPEND benchbin ${source_name})
 endmacro()
 
+# benchmarks 
 add_benchmark(hm_async_asterisk_offline)
 add_benchmark(hm_async_asterisk_online)
 add_benchmark(hm_async_asterisk_mpc)
@@ -20,6 +21,11 @@ add_benchmark(dm_async_asterisk_god_online)
 add_benchmark(dm_sync_asterisk_god_mpc)
 add_benchmark(dm_sync_asterisk_god_offline)
 add_benchmark(dm_sync_asterisk_god_online)
+
+add_benchmark(dm_async_asterisk_god_ope)
+add_benchmark(dm_sync_asterisk_god_ope)
+
+add_benchmark(dm_async_asterisk_ope)
 
 
 add_custom_target(benchmarks)

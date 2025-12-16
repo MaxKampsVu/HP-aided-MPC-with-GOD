@@ -1,23 +1,34 @@
 #!/bin/bash
 # set -x
 
-# Usage: ./../async_asterisk_mpc.sh <g> <d> <players> <delay_party_count>
+# Usage: ./../async_asterisk_ope.sh <g> <d> <players> <delay_party_count> <run_opt>
 # g: number of multiplication gates at each level
 # d: multiplication depth of the circuit
 # players: total number of parties
 # delay_party_count: number of parties that will be delayed
-# Example: ./../async_asterisk_mpc.sh 10 10 5 2
+# run_opt: 0 for Honest Majority, 1 for Dishonest Majority
+# Example: ./../async_asterisk_ope.sh 10 10 5 2 0
 
 delay_party_count=$4
+run_opt=$5
 latency=200 # latency in milliseconds
 
 threads=64
 
-echo "Running Asynchronous Asterisk GOD ope phase (Dishonest Majority)"
-echo "*****************************************************************"
-pkill -f "dm_async_asterisk_god_ope"
-run_app=./benchmarks/dm_async_asterisk_god_ope
-dir=~/benchmark_data/dm_async_asterisk_god_ope
+if test $run_opt = 0
+then
+	echo "Running Asynchronous Asterisk ope phase (Honest Majority)"
+	echo "*****************************************************************"
+    pkill -f "hm_async_asterisk_ope"
+	run_app=./benchmarks/hm_async_asterisk_ope
+	dir=~/benchmark_data/hm_async_asterisk_ope
+else
+	echo "Running Asynchronous Asterisk ope phase (Dishonest Majority)"
+	echo "*****************************************************************"
+    pkill -f "dm_async_asterisk_ope"
+	run_app=./benchmarks/dm_async_asterisk_ope
+	dir=~/benchmark_data/dm_async_asterisk_ope
+fi
 
 # rm -rf $dir/*.log $dir/g*.json
 mkdir -p $dir
@@ -34,7 +45,6 @@ do
     do
         log=$dir/g_$1_d_$2_$party.log
         json=$dir/g_$1_d_$2_$party.json
-
         if test $party -gt $(($players - $delay_party_count))
         then
             if test $party = $players

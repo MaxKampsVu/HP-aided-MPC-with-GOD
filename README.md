@@ -49,7 +49,7 @@ docker build -t async-hp-aided-mpc .
 #
 # This should start the shell from within the container.
 docker run --cap-add=NET_ADMIN -it -v $PWD:/code async-hp-aided-mpc
-
+c
 # The following command changes the working directory to the one containing the 
 # source code and should be run on the shell started using the previous command.
 cd /code
@@ -122,4 +122,105 @@ Execute the following commands from the `build` directory created during compila
 
 # Benchmark Asynchronous HP-aided MPC online phase for dishonest-majority setting.
 ./../async_asterisk_online.sh 100 10 5 0 1
+```
+
+
+
+
+
+```
+#!/bin/bash
+# set -eu
+
+# Usage: ./run_sync_mpc.sh <g> <d> <players>
+# g: number of multiplication gates at each level
+# d: multiplication depth of the circuit
+# players: total number of parties
+# Example: ./run_sync_mpc.sh 10 10 5
+
+# --- SINGULARITY AND PATH CONFIGURATION ---
+# Define paths relative to the current directory (where the SIF file is)
+SIF_FILE="./my-image.sif"
+# Assuming project root is in a subdirectory named 'HP-aided-MPC-with-GOD'
+ASTERISK_ROOT="./HP-aided-MPC-with-GOD" 
+
+# Absolute path to the compiled binary on the host filesystem
+BINARY_NAME=""
+run_app="/home/jjb140/${BINARY_NAME}" 
+
+# Check for essential files
+if [ ! -f "$SIF_FILE" ]; then
+    echo "FATAL: Singularity image not found at $SIF_FILE"
+    exit 1
+fi
+if [ ! -f "$run_app" ]; then
+    echo "FATAL: Compiled binary not found at $run_app. Did you compile with the SIF?"
+    exit 1
+fi
+# --- END CONFIGURATION ---
+
+# Arguments (using descriptive variable names)
+gates=$1
+depth=$2
+players=$3
+
+threads=64
+
+echo "Running Synchronous Asterisk GOD MPC (Dishonest Majority)"
+echo "*****************************************************************"
+pkill -f "$BINARY_NAME"
+dir=~/benchmark_data/${BINARY_NAME} # Logs still go to your home directory
+
+# rm -rf $dir/*.log $dir/g*.json
+mkdir -p "$dir"
+
+num_repeat=1
+
+for repeat in $(seq 1 $num_repeat)
+do
+
+for players in $players
+do
+    echo "Starting synchronous benchmark for N=$players parties..."
+
+    # Launch parties 1 to N
+    for party in $(seq 1 $players)
+    do
+        log="$dir/g_${gates}_d_${depth}_p${party}.log"
+        json="$dir/g_${gates}_d_${depth}_p${party}.json"
+
+        # Base command for the binary (using absolute path on the host)
+        BASE_CMD="$run_app -p $party --localhost -g $gates -d $depth -n $players"
+        
+        # --- WRAP EXECUTION WITH SINGULARITY ---
+        # The key is to use the -B bind mount option to ensure the container can find the binary path
+        
+        if test $party = 1
+        then
+            # Party 1: Output to log and save JSON
+            singularity exec -B $PWD:$PWD $SIF_FILE $BASE_CMD -o "$json" 2>&1 >> "$log" &
+        else
+            # Other Parties: Suppress output
+            singularity exec -B $PWD:$PWD $SIF_FILE $BASE_CMD 2>&1 > /dev/null &
+        fi
+        
+        codes[$party]=$!
+    done
+
+    # --- WRAP EXECUTION FOR PARTY 0 ---
+    # Party 0: Output to log and screen, set threads
+    FULL_CMD="$run_app -p 0 --localhost -g $gates -d $depth -n $players -o $dir/g_${gates}_d_${depth}_p0.json -t $threads"
+    singularity exec -B $PWD:$PWD $SIF_FILE $FULL_CMD 2>&1 | tee -a "$dir/g_${gates}_d_${depth}_p0.log" &
+    codes[0]=$!
+
+    for party in $(seq 0 $players)
+    do
+        wait ${codes[$party]} || exit 1 # FIX: Changed 'return 1' to 'exit 1'
+    done
+    echo "Benchmark for N=$players completed."
+
+    pkill -f "$BINARY_NAME"
+done
+
+done
 ```
