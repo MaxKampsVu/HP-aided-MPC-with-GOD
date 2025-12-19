@@ -44,18 +44,16 @@ namespace dmAsyncAsterisk {
             }
             cv_.notify_one();
           }
-          if(!justRunOPEFlag) { // disable sending of share to party n if benchmarking only ope 
-            for(size_t count=0; count < 3; count++) {
-              size_t total_comm;
-              network_->recv(pid, &total_comm, sizeof(size_t));
-              std::vector<Field> offline_comm_to_HP(total_comm);
-              network_->recv(pid, offline_comm_to_HP.data(), sizeof(Field) * total_comm);
-              {
-                  std::lock_guard<std::mutex> lock(mtx_);
-                  offline_message_buffer_[count+2].push({pid, offline_comm_to_HP});
-              }
-              cv_.notify_one();
+          for(size_t count=0; count < 3; count++) {
+            size_t total_comm;
+            network_->recv(pid, &total_comm, sizeof(size_t));
+            std::vector<Field> offline_comm_to_HP(total_comm);
+            network_->recv(pid, offline_comm_to_HP.data(), sizeof(Field) * total_comm);
+            {
+                std::lock_guard<std::mutex> lock(mtx_);
+                offline_message_buffer_[count+2].push({pid, offline_comm_to_HP});
             }
+            cv_.notify_one();
           }
         });
       }
@@ -452,7 +450,6 @@ namespace dmAsyncAsterisk {
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
     
-    //std::cout << "number of opes round 0: " << inputToOPE[0].size() << std::endl;
     runOPE(inputToOPE[0], outputOfOPE, 0);
 
     if (id_ != nP_) {
@@ -638,7 +635,6 @@ namespace dmAsyncAsterisk {
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
 
-    //std::cout << "number of opes round 1: " << inputToOPE[1].size() << std::endl;
     runOPE(inputToOPE[1], outputOfOPE, 1);
 
     if (id_ != nP_) {

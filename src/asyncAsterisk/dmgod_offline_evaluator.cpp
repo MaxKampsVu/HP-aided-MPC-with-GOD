@@ -161,48 +161,36 @@ namespace dmAsyncAsteriskGOD {
   void OfflineEvaluator::randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret) {        
     secret = Field(0);
     Field valSh;
-    // TP 
     if(pid == 0) {  
-      // TP is not dealer 
       if (pid != dealer) {
-          // Sample shareTP together with dealer
           randomizeZZp(rgen.pij(dealer, dealer), valSh, sizeof(Field));
           share.setValue(valSh);
       }
-      // TP is dealer 
       else {
-        // Sample shareTP alone  
         Field valSh;
         randomizeZZp(rgen.p0(), valSh, sizeof(Field));
         share.setValue(valSh);
         secret += valSh;
-        // Sample shareP with all Parties 
         Field val;
         randomizeZZp(rgen.all(), val, sizeof(Field));
         secret += val;
       }
     }
-    // Parties 
     else {
-      // TP is dealer 
       if (dealer == 0) {
-        // Sample shareP with TP
         randomizeZZp(rgen.all(), valSh, sizeof(Field));
         share.setValue(valSh);
       }
-      // Party pid is not the dealer 
       else if (pid != dealer) {
         Field valSh;
         randomizeZZp(rgen.all_minus_0(), valSh, sizeof(Field));
         share.setValue(valSh);
       }
-      // Party pid is the dealer 
       else {
         Field valSh;
         randomizeZZp(rgen.all_minus_0(), valSh, sizeof(Field));
         share.setValue(valSh);
         secret += valSh;
-        // Sample shareTP together with TP
         Field val;
         randomizeZZp(rgen.pij(dealer, dealer), val, sizeof(Field));
         secret += val;
