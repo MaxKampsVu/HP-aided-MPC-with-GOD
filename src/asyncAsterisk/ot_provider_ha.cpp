@@ -52,6 +52,18 @@ namespace asyncAsterisk {
     return {Field(tmp[0]), Field(tmp[1])};
   }
 
+  std::vector<Field> blocksToFields(emp::block* b, size_t length) {
+    std::vector<Field> result(length * 2);
+
+    std::vector<Field> buf(2);
+    for(int i = 0; i < length; i++) {
+      buf = blockToFields(b[i]);
+      result.push_back(buf[0]);
+      result.push_back(buf[1]);
+    }
+    return result;
+  }
+
 
   void OTProviderHA::send(const Field* data0, const Field* data1, size_t length, PRG& prg, fieldDig& ot_dig) {
     auto* data = new emp::block[length];    
@@ -79,13 +91,15 @@ namespace asyncAsterisk {
     }
     
     ot_dig = hashFields(blockToFields(s)); 
+    hashFields(upad);
     sendFieldElements(upad.data(), 2 * sizeof(Field) * length);
     delete[] data;
   }
 
   void OTProviderHA::recv(Field* rdata, const bool* r, size_t length, fieldDig& ot_dig) {
     auto* data = new emp::block[length];
-    ot_->recv_cot(data, r, length);    
+    ot_->recv_cot(data, r, length);   
+    blocksToFields(data, length);
     emp::block s;
     ios_[0]->recv_block(&s, 1);
     ot_->mitccrh.setS(s);
@@ -184,6 +198,7 @@ namespace asyncAsterisk {
     }
 
     ot_dig = hashFields(blockToFields(s)); 
+    hashFields(upad);
     delete[] data;
     return shares;
   }
@@ -214,7 +229,7 @@ namespace asyncAsterisk {
 
     std::vector<Field> recv_blocks(num_blocks);
     recv(recv_blocks.data(), choice_bits.get(), num_blocks, ot_dig);
-    
+
     std::vector<Field> shares(inputs.size(), Field(0));
     idx = 0;
     for (size_t i = 0; i < inputs.size(); ++i) {

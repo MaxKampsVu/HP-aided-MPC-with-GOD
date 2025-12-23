@@ -31,35 +31,18 @@ namespace dmAsyncAsteriskGOD {
     }
 
     // Setup OT provider instances 
-    if(run_async_) {
-      if (id_ == 0) {
-        for (size_t i = 1; i <= nP_; i++) {
-          ot_.emplace_back(std::make_unique<OTProviderHA>(id_, i, network_ot_->getRecvChannel(i)));
-          network_ot_->getRecvChannel(i)->flush();
-        }
-      }
-      else {
-        ot_.emplace_back(std::make_unique<OTProviderHA>(id_, 0, network_ot_->getSendChannel(0)));
-        network_ot_->getSendChannel(0)->flush();
-      }
-    } else {
-      if (id_ == 0) {
-        for (size_t pid = 1; pid <= nP_; pid++) {
-          if (pid == SYNC_SENDER_PID) {
-            ot_.emplace_back(std::make_unique<OTProviderHA>(id_, SYNC_SENDER_PID, network_ot_->getRecvChannel(SYNC_SENDER_PID)));
-            network_ot_->getRecvChannel(SYNC_SENDER_PID)->flush();
-          } else {
-            std::make_unique<OTProviderHA>(id_, pid, network_ot_->getRecvChannel(pid));
-            network_ot_->getSendChannel(pid)->flush();
-          }
-        }
-      }
-      else {
-        // Create OT instance to HP 
-        ot_.emplace_back(std::make_unique<OTProviderHA>(id_, 0, network_ot_->getSendChannel(0)));
-        network_ot_->getSendChannel(0)->flush();
+    
+    if (id_ == 0) {
+      for (size_t i = 1; i <= nP_; i++) {
+        ot_.emplace_back(std::make_unique<OTProviderHA>(id_, i, network_ot_->getRecvChannel(i)));
+        network_ot_->getRecvChannel(i)->flush();
       }
     }
+    else {
+      ot_.emplace_back(std::make_unique<OTProviderHA>(id_, 0, network_ot_->getSendChannel(0)));
+      network_ot_->getSendChannel(0)->flush();
+    }
+     
 
     // Worker thread setup 
     if (id_ != 0) 
@@ -199,9 +182,11 @@ namespace dmAsyncAsteriskGOD {
   }
 
   bool OfflineEvaluator::verifyOPEMsgs(std::vector<fieldDig> chunk_digs, Field sender_id) {
+    // --- HP sends digest of sender_ids msgs ---
     constexpr size_t digest_size = 4;   
     const size_t num_chunks = chunk_digs.size();
     const size_t total_comm = 1 + digest_size * num_chunks;
+    bool check_passed = true;
 
     /**
      * recv_buf/send_buf layout:
@@ -267,12 +252,96 @@ namespace dmAsyncAsteriskGOD {
             std::cout << "Party " << id_
                       << " has identified Party " << sender_id
                       << " as a cheater during OPE!" << std::endl;
-            return false;
+            check_passed = false;
         }
       }
     }
-    return true;
-  }
+
+    if(run_async_) { 
+      return check_passed; 
+    } 
+
+    // ----- Parties report back result of VerifyOPE msgs in synchronous protocol ---------
+
+    std::unordered_map<size_t, bool> partyAckMap;
+
+    if (id_ == 0) {
+        for (int pid = 1; pid <= nP_; ++pid) {
+            if (Field(pid) == sender_id) {
+              partyAckMap[pid] = true;
+              continue; 
+            }
+
+            bool ack_status;
+            network_ot_->recv(pid, &ack_status, sizeof(bool));
+            partyAckMap[pid] = ack_status;
+            if (!ack_status) {
+                check_passed = false;
+            }
+        }
+    } 
+    else {
+        if (Field(id_) != sender_id) {
+            bool status_to_send = check_passed ? true : false;
+
+            network_ot_->send(0, &status_to_send, sizeof(bool));
+            network_ot_->getSendChannel(0)->flush();
+        }
+    }
+
+    // --- HP sends bit vector of parties individual checks to all parties ---
+    
+    auto& pool = *tpool_minus_one_;
+    size_t vec_size = (nP_ + 63) / 64; 
+
+    if (id_ == 0) {
+      std::vector<uint64_t> ack_bit_vector(vec_size, 0);
+      
+      for (auto const& [pid, status] : partyAckMap) {  
+          size_t word_idx = (pid - 1) / 64;
+          size_t bit_idx = (pid - 1) % 64;
+          if (status == true) {
+              ack_bit_vector[word_idx] |= (1ULL << bit_idx);
+          }
+      }
+      std::cout << "HPs ack bit vector" << ack_bit_vector[0] << std::endl;
+
+      // Broadcast
+      std::vector<std::future<void>> send_ack_t;
+      for (size_t pid = 1; pid <= nP_; ++pid) {
+          send_ack_t.push_back(pool.enqueue([&, pid, ack_bit_vector]() {
+              network_->send(pid, ack_bit_vector.data(), vec_size * sizeof(uint64_t));
+              network_->getSendChannel(pid)->flush();
+          }));
+      }
+      for (auto& t : send_ack_t) { if (t.valid()) t.wait(); }
+    } 
+    else {
+      // RECEIVER logic
+      std::vector<uint64_t> final_vec(vec_size);
+      network_->recv(0, final_vec.data(), vec_size * sizeof(uint64_t));
+      bool expected = check_passed;
+      
+      std::cout << "received" << final_vec[0] << std::endl;
+
+      // Check every party from 1 to nP_
+      for (size_t pid = 1; pid <= nP_; ++pid) {
+          size_t word_idx = (pid - 1) / 64;
+          size_t bit_idx = (pid - 1) % 64;
+
+          // Extract the specific bit for pid and check if it is the same as mine 
+          bool bit_is_set = ((final_vec[word_idx] >> bit_idx) & 1) == expected;
+
+          if (!bit_is_set) {
+              std::cout << "Party " << id_ << " found that Party " << pid 
+                        << " did not acknowledge as expected!" << std::endl;
+              check_passed = false;
+          }
+      }
+    }
+
+    return check_passed;
+  } 
 
   void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector<Field>& outputOfOPE, size_t count, bool verifyHA) {
     std::vector<fieldDig> chunk_digs;

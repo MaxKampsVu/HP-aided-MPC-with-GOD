@@ -13,6 +13,8 @@ namespace utils {
 
     using fieldDig = std::vector<Field>;
 
+    uint64_t to_uint64(Field a);
+
     fieldDig hashFields(const std::vector<Field>& fields);
 
     void appendFieldDig(std::vector<Field>& vec, fieldDig& dig);

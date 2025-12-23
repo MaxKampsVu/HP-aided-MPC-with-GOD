@@ -30,6 +30,7 @@ namespace dmAsyncAsteriskGOD {
         LevelOrderedCircuit circ_;
         std::shared_ptr<ThreadPool> tpool_;
         std::shared_ptr<ThreadPool> tpool_minus_one_;
+        std::shared_ptr<ThreadPool> tpool_ack_;
         PreprocCircuit<Field> preproc_;
         std::vector<std::unique_ptr<OTProviderHA>> ot_;
         std::unordered_map<size_t, std::queue<Offline_Message>> offline_message_buffer_;
