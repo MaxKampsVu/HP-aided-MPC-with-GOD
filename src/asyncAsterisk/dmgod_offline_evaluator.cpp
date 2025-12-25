@@ -304,7 +304,6 @@ namespace dmAsyncAsteriskGOD {
               ack_bit_vector[word_idx] |= (1ULL << bit_idx);
           }
       }
-      std::cout << "HPs ack bit vector" << ack_bit_vector[0] << std::endl;
 
       // Broadcast
       std::vector<std::future<void>> send_ack_t;
@@ -321,8 +320,7 @@ namespace dmAsyncAsteriskGOD {
       std::vector<uint64_t> final_vec(vec_size);
       network_->recv(0, final_vec.data(), vec_size * sizeof(uint64_t));
       bool expected = check_passed;
-      
-      std::cout << "received" << final_vec[0] << std::endl;
+  
 
       // Check every party from 1 to nP_
       for (size_t pid = 1; pid <= nP_; ++pid) {
