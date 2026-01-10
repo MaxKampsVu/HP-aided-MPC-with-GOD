@@ -9,6 +9,7 @@ namespace dmAsyncAsteriskGOD {
     class TwoShare {
         R value_;
         R mac_component_;
+        R secret_;
 
         public:
         TwoShare() = default;
@@ -16,9 +17,11 @@ namespace dmAsyncAsteriskGOD {
 
         R getValue() const { return value_; }
         R getMACComponent() { return mac_component_; }
+        R getSecret() const { return secret_; }
 
         void setValue(R value) { value_ = value; }
         void setMACComponent(R mac_component) { mac_component_ = mac_component; }
+        void setSecret(R secret) { secret_ = secret; }
 
         TwoShare<R>& add(R val, int id) {
             if (id==0) {

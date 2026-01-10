@@ -1,9 +1,6 @@
 #include "dmgod_online_evaluator.h"
 
 namespace dmAsyncAsteriskGOD {
-    int dmAsyncAsteriskGOD::OnlineEvaluator::counter_tp = 0;
-    int dmAsyncAsteriskGOD::OnlineEvaluator::counter_p = 0;
-
 
     OnlineEvaluator::OnlineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network, PreprocCircuit<Field> preproc, 
         LevelOrderedCircuit circ, int threads, uint64_t seed) 
@@ -43,6 +40,15 @@ namespace dmAsyncAsteriskGOD {
 
     OnlineEvaluator::~OnlineEvaluator() {
         tpool_.reset();
+    }
+
+    void OnlineEvaluator::setRandomInputs() {
+        for (auto &g : circ_.gates_by_level[0]) {
+            if (g->type == GateType::kInp) {
+                //randomizeZZp(rgen_.all(), wires_[g->out], sizeof(Field));
+                wires_[g->out] = 0;
+            }
+        }
     }
 
     void OnlineEvaluator::setInputs(const std::unordered_map<wire_t, Field> &inputs) {
@@ -201,31 +207,6 @@ namespace dmAsyncAsteriskGOD {
         }
     }
 
-    template<typename It>
-    void print_range(It begin, It end) {
-        std::cout << "[";
-        for (It it = begin; it != end; ++it) {
-            std::cout << *it;
-            if (std::next(it) != end)
-                std::cout << ", ";
-        }
-        std::cout << "]\n";
-    }
-
-    template <typename T>
-    void print_vector(const std::vector<T>& v, std::string prefix = "") {
-    std::cout << prefix << " [";
-
-    for (size_t i = 0; i < v.size(); ++i) {
-        std::cout << v[i];
-        if (i + 1 < v.size())
-            std::cout << ", ";
-    }
-
-    std::cout << "]\n";
-    }
-
-
     void OnlineEvaluator::evaluateGatesAtDepth(size_t depth) {
         size_t mult_num = 0;
         std::vector<Field> mult_nonTP;
@@ -287,8 +268,6 @@ namespace dmAsyncAsteriskGOD {
                 online_comm_to_HP[i] = layer_dig[i - mult_num];
             }
 
-            counter_p++;
-
             network_->send(0, &total_comm_plus_dig, sizeof(size_t));
             network_->getSendChannel(0)->flush();
             network_->send(0, online_comm_to_HP.data(), sizeof(Field) * total_comm_plus_dig, true);
@@ -336,7 +315,7 @@ namespace dmAsyncAsteriskGOD {
 
             // If message size is not 0 perform mac check 
             if(message.data.size() != 0) {
-                // Comute macs from shares 
+                // Compute macs from shares 
                 auto tp_macs = std::vector<Field>(mac_components.size());
                 for(size_t i = 0; i < mac_components.size(); i++) {
                     tp_macs[i] =  preproc_.tp_key * message.data[i] - mac_components[i];
@@ -348,18 +327,12 @@ namespace dmAsyncAsteriskGOD {
                               message.data.end()
                 );
 
-                //print_vector(tp_layer_dig, "expected: ");
-                //print_vector(p_layer_dig, "received: ");
-
                 if(tp_layer_dig != p_layer_dig) {
-                    std::cout << counter_tp << ": Received inconsistent shares from Party " << message.receiver_id << std::endl;
+                    
+                    std::cout << ": Received inconsistent shares from Party " << message.receiver_id << std::endl;
                 }
             }
 
-            counter_tp++;
-
-            
-            
             for(size_t i = 0; i < mult_num; i++) {
                 mult_all[i] = agg_values[i] + message.data[i];
             }

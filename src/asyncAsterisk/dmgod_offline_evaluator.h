@@ -51,6 +51,8 @@ namespace dmAsyncAsteriskGOD {
         static void randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share);
         static void randomShareSecret(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
             TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
+        static PreprocCircuit<Field> dummy(int id, const LevelOrderedCircuit& circ, 
+            const std::unordered_map<wire_t, int>& input_pid_map, PRG& prg);
         static void randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
         bool verifyOPEMsgs(std::vector<fieldDig> chunk_digs, Field sender_id);
         void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count, bool verifyHA);

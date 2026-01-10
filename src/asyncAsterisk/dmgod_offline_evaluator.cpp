@@ -87,7 +87,7 @@ namespace dmAsyncAsteriskGOD {
         });
     };
 
-
+    
     // Async mode: spawn worker for every party 
     if (run_async_) {
         for (size_t pid = 1; pid <= nP_; pid++)
@@ -383,6 +383,124 @@ namespace dmAsyncAsteriskGOD {
       idx_outputOfOPE += 2;
   }
 
+  PreprocCircuit<Field> OfflineEvaluator::dummy(int id, const LevelOrderedCircuit& circ, 
+    const std::unordered_map<wire_t, int>& input_pid_map, PRG& prg) {
+    PreprocCircuit<Field> preproc(circ.num_gates);
+    
+    Field Delta;
+    randomizeZZp(prg, Delta, sizeof(Field));
+    preproc.setTPKey(Delta);
+
+    for (const auto& level : circ.gates_by_level) {
+      for (const auto& gate : level) {
+        switch (gate->type) {
+          case GateType::kInp: {
+            auto pregate = std::make_unique<PreprocInput<Field>>();      
+            auto pid = input_pid_map.at(gate->out);
+            pregate->pid = pid;
+
+            TwoShare<Field> myShare;
+            Field mask, shareP, shareTP, macP, macTP;
+
+            randomizeZZp(prg, mask, sizeof(Field));
+            randomizeZZp(prg, shareP, sizeof(Field));
+            shareTP = mask - shareP;
+            randomizeZZp(prg, macP, sizeof(Field));
+            macTP = shareP * Delta - macP;
+
+            if(id == 0) {
+              myShare = TwoShare<Field>(shareTP);
+              myShare.setMACComponent(macTP);
+            } else {
+              myShare = TwoShare<Field>(shareP);
+              myShare.setMACComponent(macP);
+            }
+            myShare.setSecret(mask);
+
+            pregate->mask = myShare;   
+            preproc.gates[gate->out] = std::move(pregate);                
+            break;
+          }
+
+          case GateType::kAdd: {
+            const auto* g = static_cast<FIn2Gate*>(gate.get());
+            const auto& mask_in1 = preproc.gates[g->in1]->mask;
+            const auto& mask_in2 = preproc.gates[g->in2]->mask;
+            preproc.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 + mask_in2));    
+            break;
+          }
+
+          case GateType::kConstAdd: {
+            const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
+            const auto& mask = preproc.gates[g->in]->mask;
+            preproc.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
+            break;
+          }
+
+          case GateType::kConstMul: {
+            const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
+            const auto& mask = preproc.gates[g->in]->mask * g->cval;
+            preproc.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
+            break;
+          }
+
+          case GateType::kSub: {
+            const auto* g = static_cast<FIn2Gate*>(gate.get());
+            const auto& mask_in1 = preproc.gates[g->in1]->mask;
+            const auto& mask_in2 = preproc.gates[g->in2]->mask;
+            preproc.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 - mask_in2));
+            break;
+          }
+
+          case GateType::kMul: {
+            preproc.gates[gate->out] = std::make_unique<PreprocMultGate<Field>>();
+            const auto* g = static_cast<FIn2Gate*>(gate.get());
+            const auto& mask_in1 = preproc.gates[g->in1]->mask;
+            const auto& mask_in2 = preproc.gates[g->in2]->mask;
+
+            TwoShare<Field> myProd, myOut;
+            Field prod, prodP, prodTP, prodMacP, prodMacTP;
+            Field out, outP, outTP, outMacP, outMacTP;
+
+            prod = mask_in1.getSecret() * mask_in2.getSecret();
+            randomizeZZp(prg, prodP, sizeof(Field));
+            prodTP = prod - prodP;
+            randomizeZZp(prg, prodMacP, sizeof(Field));
+            prodMacTP = prodP * Delta - prodMacP;
+
+            randomizeZZp(prg, out, sizeof(Field));
+            randomizeZZp(prg, outP, sizeof(Field));
+            outTP = out - outP;
+            randomizeZZp(prg, outMacP, sizeof(Field));
+            outMacTP = outP * Delta - outMacP;
+
+            if (id == 0) {
+              myProd = TwoShare<Field>(prodTP);
+              myProd.setMACComponent(prodMacTP);
+              myOut = TwoShare<Field>(outTP);
+              myOut.setMACComponent(outMacTP);
+            }
+            else {
+              myProd = TwoShare<Field>(prodP);
+              myProd.setMACComponent(prodMacP);
+              myOut = TwoShare<Field>(outP);
+              myOut.setMACComponent(outMacP);
+            }
+            myOut.setSecret(out);
+
+            preproc.gates[gate->out] = std::move(std::make_unique<PreprocMultGate<Field>> (myOut, myProd));
+            break;
+          }
+
+          default: {
+            break;
+          }
+        }
+      }
+    }
+    return preproc;
+  }
+
   void OfflineEvaluator::prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map) {
     std::vector<Field> buffer; 
     size_t idx_buffer=0; 
@@ -665,7 +783,7 @@ namespace dmAsyncAsteriskGOD {
   }
 
   void OfflineEvaluator::justRunOpe(size_t num_input_gates, size_t num_mul_gates) {
-    // s (tags on crossterms of multiplication gates)
+    // s (macPs on crossterms of multiplication gates)
     size_t num_ope_first_round = 2 * num_mul_gates; 
     inputToOPE[0] = std::vector<Field>(num_ope_first_round);  
     std::vector<Field> outputOfOPE; 
@@ -673,7 +791,7 @@ namespace dmAsyncAsteriskGOD {
     outputOfOPE.clear();
     outputOfOPE.shrink_to_fit();      
 
-    // Second round (tags output wire of input + tags on output wire of multiplication + tags xy term multiplication)
+    // Second round (macPs output wire of input + macPs on output wire of multiplication + macPs xy term multiplication)
     size_t num_ope_second_round = num_input_gates + num_mul_gates + num_mul_gates;
     inputToOPE[1] = std::vector<Field>(num_ope_second_round);  
     runOPE(inputToOPE[1], outputOfOPE, 1, false);  
