@@ -45,8 +45,7 @@ namespace dmAsyncAsteriskGOD {
     void OnlineEvaluator::setRandomInputs() {
         for (auto &g : circ_.gates_by_level[0]) {
             if (g->type == GateType::kInp) {
-                //randomizeZZp(rgen_.all(), wires_[g->out], sizeof(Field));
-                wires_[g->out] = 0;
+                randomizeZZp(rgen_.all(), wires_[g->out], sizeof(Field));
             }
         }
     }
