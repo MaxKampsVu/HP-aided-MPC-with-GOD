@@ -75,7 +75,7 @@ void benchmark(const bpo::variables_map& opts) {
 
         network = std::make_shared<NetIOMP>(pid, nP+1, port, ip.data(), false, latency);
     }
-
+    
     json output_data;
     output_data["details"] = {{"gates_per_level", gates_per_level},
                                 {"depth", depth},

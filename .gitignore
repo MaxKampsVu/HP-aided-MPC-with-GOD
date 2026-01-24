@@ -1,2 +1,4 @@
 build/
+tags
+.vscode/
 hpc_benchmarking/

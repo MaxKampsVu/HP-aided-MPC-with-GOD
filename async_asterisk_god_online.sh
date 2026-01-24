@@ -1,100 +1,79 @@
 #!/bin/bash
 # set -x
 
-# Usage: ./../async_asterisk_mpc.sh <g> <d> <players> <delay_party_count>
+# Usage: ./../async_asterisk_online.sh <g> <d> <players> <delay_party_count> <run_opt>
 # g: number of multiplication gates at each level
 # d: multiplication depth of the circuit
 # players: total number of parties
 # delay_party_count: number of parties that will be delayed
+# run_opt: 0 for Alhena, 1 for Wasat
+# Example: ./../async_asterisk_online.sh 10 10 5 2 0
 
 delay_party_count=$4
+run_opt=$5
 latency=200 # latency in milliseconds
+
 threads=64
 
-echo "Running Asynchronous Asterisk GOD online phase (Dishonest Majority)"
-echo "*****************************************************************"
+if test $run_opt = 0
+then
+	echo "Running synchronous Alhena MPC online phase"
+	echo "*****************************************************************"
+    pkill -f "dm_sync_asterisk_god_online"
+	run_app=./benchmarks/dm_sync_asterisk_god_online
+    dir=~/benchmark_data/dm_sync_asterisk_god_online
+else
+	echo "Running asynchronous Wasat online phase"
+	echo "*****************************************************************"
+    pkill -f "dm_async_asterisk_god_online"
+	run_app=./benchmarks/dm_async_asterisk_god_online
+    dir=~/benchmark_data/dm_async_asterisk_god_online
+fi
 
-# Clean up any hanging processes
-pkill -f "dm_sync_asterisk_god_offline"
-run_app=./benchmarks/dm_sync_asterisk_god_offline
-dir=~/benchmark_data/dm_sync_asterisk_god_offline
-
+# rm -rf $dir/*.log $dir/g*.json
 mkdir -p $dir
 
 num_repeat=1
 
 for repeat in $(seq 1 $num_repeat)
 do
+
+# for players in {5,10,20,30}
 for players in $3
 do
-    # --- Launch Parties 1 to N ---
     for party in $(seq 1 $players)
     do
         log=$dir/g_$1_d_$2_$party.log
-        
-        # Check if this party should be delayed (high latency)
+        json=$dir/g_$1_d_$2_$party.json
         if test $party -gt $(($players - $delay_party_count))
         then
-            # Redirect stdout and stderr to log file
-            $run_app -p $party --localhost -g $1 -d $2 -n $players -l $latency > "$log" 2>&1 &
+            if test $party = $players
+            then
+                $run_app -p $party --localhost -g $1 -d $2 -n $players -l $latency 2>&1 >> $log &
+            else
+                $run_app -p $party --localhost -g $1 -d $2 -n $players -l $latency 2>&1 > /dev/null &
+            fi
         else
-            $run_app -p $party --localhost -g $1 -d $2 -n $players > "$log" 2>&1 &
+            if test $party = $players
+            then
+                $run_app -p $party --localhost -g $1 -d $2 -n $players 2>&1 >> $log &
+            else
+                $run_app -p $party --localhost -g $1 -d $2 -n $players 2>&1 > /dev/null &
+            fi
         fi
         
         codes[$party]=$!
     done
 
-    # --- Launch Party 0 (HP / Trusted Party) ---
-    # We use tee for Party 0 so we can see the progress in the terminal
-    $run_app -p 0 --localhost -g $1 -d $2 -n $players -t $threads 2>&1 | tee "$dir/g_$1_d_$2_0.log" &
+    $run_app -p 0 --localhost -g $1 -d $2 -n $players -t $threads 2>&1 | tee -a $dir/g_$1_d_$2_0.log &
     codes[0]=$!
 
-    # --- Wait for all processes to finish ---
     for party in $(seq 0 $players)
     do
-        wait ${codes[$party]}
+        wait ${codes[$party]} || return 1
     done
 
-    # --- SUMMARY SECTION ---
-    echo -e "\n--- Final Results for All Parties ---"
-    
-    total_time=0
-    party_count=0
-
-    for party in $(seq 0 $players)
-    do
-        log_file=$dir/g_$1_d_$2_$party.log
-        if [ -f "$log_file" ]; then
-            echo "Party $party:"
-            # Extract and format the specific metrics from the log
-            grep -E "pid:|time:|sent:" "$log_file" | sed 's/^/  /'
-            
-            # Extract time for averaging (excluding Party 0)
-            if [ $party -ne 0 ]; then
-                # Grab the number from "time: 123.45 ms"
-                p_time=$(grep "time:" "$log_file" | awk '{print $2}')
-                
-                if [ ! -z "$p_time" ]; then
-                    # Use awk for floating point addition since bc is missing
-                    total_time=$(awk "BEGIN {print $total_time + $p_time}")
-                    party_count=$((party_count + 1))
-                fi
-            fi
-        fi
-    done
-
-    # --- PRINT AVERAGE ---
-    if [ $party_count -gt 0 ]; then
-        # Use awk for floating point division
-        avg_time=$(awk "BEGIN {printf \"%.4f\", $total_time / $party_count}")
-        echo -e "\n**************************************"
-        echo "Average Party Execution Time: $avg_time ms"
-        echo "**************************************"
-    else
-        echo -e "\n[!] No party timing data found to average."
-    fi
-
-    # Final cleanup of the current run
     pkill -f $run_app
 done
+
 done

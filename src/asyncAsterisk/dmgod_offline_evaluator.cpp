@@ -1,18 +1,6 @@
 #include "dmgod_offline_evaluator.h"
 
 namespace dmAsyncAsteriskGOD {
-    template <typename T>
-  void print_vector(const std::vector<T>& v) {
-      std::cout << "[";
-
-      for (size_t i = 0; i < v.size(); ++i) {
-          std::cout << v[i];
-          if (i + 1 < v.size())
-              std::cout << ", ";
-      }
-
-      std::cout << "]\n";
-  }
 
   OfflineEvaluator::OfflineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network1, 
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed, bool run_async) 
@@ -592,7 +580,6 @@ namespace dmAsyncAsteriskGOD {
       }
     }
   
-    // Run MSSR OLE for multiplication triples 
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
     
@@ -611,6 +598,7 @@ namespace dmAsyncAsteriskGOD {
             auto mask_in2_val = preproc_.gates[g->in2]->mask.getValue();
             // Compute product share 
             multSS(mask_in1_val, mask_in2_val, mask_in1_in2_product_val, outputOfOPE, idx_outputOfOPE);
+
             pre_mul->mask_prod.setValue(mask_in1_in2_product_val);
             break;
           }
@@ -625,7 +613,7 @@ namespace dmAsyncAsteriskGOD {
             for(size_t i = 0; i < g->in1.size(); i++) {
               const auto& mask_ai_val = preproc_.gates[g->in1[i]]->mask.getValue();
               const auto& mask_bi_val = preproc_.gates[g->in2[i]]->mask.getValue();
-
+              
               Field mask_product_val;
               multSS(mask_ai_val, mask_bi_val, mask_product_val, outputOfOPE, idx_outputOfOPE);
               mask_vector_product_val += mask_product_val;

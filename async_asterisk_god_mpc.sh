@@ -1,23 +1,34 @@
 #!/bin/bash
 # set -x
 
-# Usage: ./../async_asterisk_mpc.sh <g> <d> <players> <delay_party_count>
+# Usage: ./../async_asterisk_offline.sh <g> <d> <players> <delay_party_count> <run_opt>
 # g: number of multiplication gates at each level
 # d: multiplication depth of the circuit
 # players: total number of parties
 # delay_party_count: number of parties that will be delayed
-# Example: ./../async_asterisk_mpc.sh 10 10 5 2
+# run_opt: 0 for Alhena, 1 for Wasat
+# Example: ./../async_asterisk_offline.sh 10 10 5 2 0
 
 delay_party_count=$4
+run_opt=$5
 latency=200 # latency in milliseconds
 
 threads=64
 
-echo "Running Asynchronous Asterisk GOD MPC (Dishonest Majority)"
-echo "*****************************************************************"
-pkill -f "dm_async_asterisk_god_mpc"
-run_app=./benchmarks/dm_async_asterisk_god_mpc
-dir=~/benchmark_data/dm_async_asterisk_god_mpc
+if test $run_opt = 0
+then
+	echo "Running synchronous Alhena MPC"
+	echo "*****************************************************************"
+    pkill -f "dm_sync_asterisk_god_mpc"
+	run_app=./benchmarks/dm_sync_asterisk_god_mpc
+    dir=~/benchmark_data/dm_sync_asterisk_god_mpc
+else
+	echo "Running asynchronous Wasat MPC"
+	echo "*****************************************************************"
+    pkill -f "dm_async_asterisk_god_mpc"
+	run_app=./benchmarks/dm_async_asterisk_god_mpc
+    dir=~/benchmark_data/dm_async_asterisk_god_mpc
+fi
 
 # rm -rf $dir/*.log $dir/g*.json
 mkdir -p $dir
@@ -34,7 +45,6 @@ do
     do
         log=$dir/g_$1_d_$2_$party.log
         json=$dir/g_$1_d_$2_$party.json
-
         if test $party -gt $(($players - $delay_party_count))
         then
             if test $party = $players

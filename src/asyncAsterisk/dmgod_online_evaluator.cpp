@@ -111,7 +111,7 @@ namespace dmAsyncAsteriskGOD {
                     
                     auto q_share = m_prod + m_out - m_in1 * wires_[g->in2] - m_in2 * wires_[g->in1];   
                     q_share.add(wires_[g->in1] * wires_[g->in2], id_);                    
-                    
+
                     q_sh_[g->out] = q_share;
                     mult_nonTP.push_back(q_share.getValue());
                     mac_components.push_back(q_share.getMACComponent());
@@ -327,7 +327,6 @@ namespace dmAsyncAsteriskGOD {
                 );
 
                 if(tp_layer_dig != p_layer_dig) {
-                    
                     std::cout << ": Received inconsistent shares from Party " << message.receiver_id << std::endl;
                 }
             }
