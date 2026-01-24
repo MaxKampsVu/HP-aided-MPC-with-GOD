@@ -75,7 +75,7 @@ void benchmark(const bpo::variables_map& opts) {
 
         network = std::make_shared<NetIOMP>(pid, nP+1, port, ip.data(), false, latency);
     }
-    
+
     json output_data;
     output_data["details"] = {{"gates_per_level", gates_per_level},
                                 {"depth", depth},
@@ -108,17 +108,14 @@ void benchmark(const bpo::variables_map& opts) {
 
     StatsPoint start(*network);
 
+    // Only run offline 
+
     PreprocCircuit<Field> preproc;
     {
         constexpr bool run_async = true;
         OfflineEvaluator off_eval(nP, pid, security_param, network, network, circ, threads, seed, run_async);
         preproc = off_eval.run(input_pid_map);
     }
-
-    {
-        OnlineEvaluator eval(nP, pid, security_param, network, std::move(preproc), circ, threads, seed);
-        auto res = eval.evaluateCircuit(input_map);
-    }    
     
     StatsPoint end(*network);
     

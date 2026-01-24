@@ -1,26 +1,13 @@
 #include "dmgod_offline_evaluator.h"
 
 namespace dmAsyncAsteriskGOD {
-    template <typename T>
-  void print_vector(const std::vector<T>& v) {
-      std::cout << "[";
-
-      for (size_t i = 0; i < v.size(); ++i) {
-          std::cout << v[i];
-          if (i + 1 < v.size())
-              std::cout << ", ";
-      }
-
-      std::cout << "]\n";
-  }
 
   OfflineEvaluator::OfflineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network1, 
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed, bool run_async) 
     : nP_(nP), id_(id), security_param_(security_param), rgen_(id, nP, seed), network_(std::move(network1)), 
-    network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(3, false), 
-    chunk_size_(50000), inputToOPE(3), run_async_(true)
+    network_ot_(std::move(network2)), circ_(std::move(circ)), preproc_(circ.num_gates), start_ot_(2, false), 
+    chunk_size_(50000), inputToOPE(2), run_async_(run_async)
   {
-
     // Threadpool setup 
     if (run_async_) {
         tpool_ = std::make_shared<ThreadPool>(threads);
@@ -32,35 +19,18 @@ namespace dmAsyncAsteriskGOD {
     }
 
     // Setup OT provider instances 
-    if(run_async_) {
-      if (id_ == 0) {
-        for (size_t i = 1; i <= nP_; i++) {
-          ot_.emplace_back(std::make_unique<OTProviderHA>(id_, i, network_ot_->getRecvChannel(i)));
-          network_ot_->getRecvChannel(i)->flush();
-        }
-      }
-      else {
-        ot_.emplace_back(std::make_unique<OTProviderHA>(id_, 0, network_ot_->getSendChannel(0)));
-        network_ot_->getSendChannel(0)->flush();
-      }
-    } else {
-      if (id_ == 0) {
-        for (size_t pid = 1; pid <= nP_; pid++) {
-          if (pid == SYNC_SENDER_PID) {
-            ot_.emplace_back(std::make_unique<OTProviderHA>(id_, SYNC_SENDER_PID, network_ot_->getRecvChannel(SYNC_SENDER_PID)));
-            network_ot_->getRecvChannel(SYNC_SENDER_PID)->flush();
-          } else {
-            std::make_unique<OTProviderHA>(id_, pid, network_ot_->getRecvChannel(pid));
-            network_ot_->getSendChannel(pid)->flush();
-          }
-        }
-      }
-      else {
-        // Create OT instance to HP 
-        ot_.emplace_back(std::make_unique<OTProviderHA>(id_, 0, network_ot_->getSendChannel(0)));
-        network_ot_->getSendChannel(0)->flush();
+    
+    if (id_ == 0) {
+      for (size_t i = 1; i <= nP_; i++) {
+        ot_.emplace_back(std::make_unique<OTProviderHA>(id_, i, network_ot_->getRecvChannel(i)));
+        network_ot_->getRecvChannel(i)->flush();
       }
     }
+    else {
+      ot_.emplace_back(std::make_unique<OTProviderHA>(id_, 0, network_ot_->getSendChannel(0)));
+      network_ot_->getSendChannel(0)->flush();
+    }
+     
 
     // Worker thread setup 
     if (id_ != 0) 
@@ -111,7 +81,7 @@ namespace dmAsyncAsteriskGOD {
         });
     };
 
-
+    
     // Async mode: spawn worker for every party 
     if (run_async_) {
         for (size_t pid = 1; pid <= nP_; pid++)
@@ -168,48 +138,36 @@ namespace dmAsyncAsteriskGOD {
   void OfflineEvaluator::randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret) {        
     secret = Field(0);
     Field valSh;
-    // TP 
     if(pid == 0) {  
-      // TP is not dealer 
       if (pid != dealer) {
-          // Sample shareTP together with dealer
           randomizeZZp(rgen.pij(dealer, dealer), valSh, sizeof(Field));
           share.setValue(valSh);
       }
-      // TP is dealer 
       else {
-        // Sample shareTP alone  
         Field valSh;
         randomizeZZp(rgen.p0(), valSh, sizeof(Field));
         share.setValue(valSh);
         secret += valSh;
-        // Sample shareP with all Parties 
         Field val;
         randomizeZZp(rgen.all(), val, sizeof(Field));
         secret += val;
       }
     }
-    // Parties 
     else {
-      // TP is dealer 
       if (dealer == 0) {
-        // Sample shareP with TP
         randomizeZZp(rgen.all(), valSh, sizeof(Field));
         share.setValue(valSh);
       }
-      // Party pid is not the dealer 
       else if (pid != dealer) {
         Field valSh;
         randomizeZZp(rgen.all_minus_0(), valSh, sizeof(Field));
         share.setValue(valSh);
       }
-      // Party pid is the dealer 
       else {
         Field valSh;
         randomizeZZp(rgen.all_minus_0(), valSh, sizeof(Field));
         share.setValue(valSh);
         secret += valSh;
-        // Sample shareTP together with TP
         Field val;
         randomizeZZp(rgen.pij(dealer, dealer), val, sizeof(Field));
         secret += val;
@@ -218,9 +176,11 @@ namespace dmAsyncAsteriskGOD {
   }
 
   bool OfflineEvaluator::verifyOPEMsgs(std::vector<fieldDig> chunk_digs, Field sender_id) {
+    // --- HP sends digest of sender_ids msgs ---
     constexpr size_t digest_size = 4;   
     const size_t num_chunks = chunk_digs.size();
     const size_t total_comm = 1 + digest_size * num_chunks;
+    bool check_passed = true;
 
     /**
      * recv_buf/send_buf layout:
@@ -286,14 +246,96 @@ namespace dmAsyncAsteriskGOD {
             std::cout << "Party " << id_
                       << " has identified Party " << sender_id
                       << " as a cheater during OPE!" << std::endl;
-            return false;
+            check_passed = false;
         }
       }
     }
-    return true;
-  }
 
-  void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector<Field>& outputOfOPE, size_t count) {
+    if(run_async_) { 
+      return check_passed; 
+    } 
+
+    // ----- Parties report back result of VerifyOPE msgs in synchronous protocol ---------
+
+    std::unordered_map<size_t, bool> partyAckMap;
+
+    if (id_ == 0) {
+        for (int pid = 1; pid <= nP_; ++pid) {
+            if (Field(pid) == sender_id) {
+              partyAckMap[pid] = true;
+              continue; 
+            }
+
+            bool ack_status;
+            network_ot_->recv(pid, &ack_status, sizeof(bool));
+            partyAckMap[pid] = ack_status;
+            if (!ack_status) {
+                check_passed = false;
+            }
+        }
+    } 
+    else {
+        if (Field(id_) != sender_id) {
+            bool status_to_send = check_passed ? true : false;
+
+            network_ot_->send(0, &status_to_send, sizeof(bool));
+            network_ot_->getSendChannel(0)->flush();
+        }
+    }
+
+    // --- HP sends bit vector of parties individual checks to all parties ---
+    
+    auto& pool = *tpool_minus_one_;
+    size_t vec_size = (nP_ + 63) / 64; 
+
+    if (id_ == 0) {
+      std::vector<uint64_t> ack_bit_vector(vec_size, 0);
+      
+      for (auto const& [pid, status] : partyAckMap) {  
+          size_t word_idx = (pid - 1) / 64;
+          size_t bit_idx = (pid - 1) % 64;
+          if (status == true) {
+              ack_bit_vector[word_idx] |= (1ULL << bit_idx);
+          }
+      }
+
+      // Broadcast
+      std::vector<std::future<void>> send_ack_t;
+      for (size_t pid = 1; pid <= nP_; ++pid) {
+          send_ack_t.push_back(pool.enqueue([&, pid, ack_bit_vector]() {
+              network_->send(pid, ack_bit_vector.data(), vec_size * sizeof(uint64_t));
+              network_->getSendChannel(pid)->flush();
+          }));
+      }
+      for (auto& t : send_ack_t) { if (t.valid()) t.wait(); }
+    } 
+    else {
+      // RECEIVER logic
+      std::vector<uint64_t> final_vec(vec_size);
+      network_->recv(0, final_vec.data(), vec_size * sizeof(uint64_t));
+      bool expected = check_passed;
+  
+
+      // Check every party from 1 to nP_
+      for (size_t pid = 1; pid <= nP_; ++pid) {
+          size_t word_idx = (pid - 1) / 64;
+          size_t bit_idx = (pid - 1) % 64;
+
+          // Extract the specific bit for pid and check if it is the same as mine 
+          bool bit_is_set = ((final_vec[word_idx] >> bit_idx) & 1) == expected;
+
+          if (!bit_is_set) {
+              std::cout << "Party " << id_ << " found that Party " << pid 
+                        << " did not acknowledge as expected!" << std::endl;
+              check_passed = false;
+          }
+      }
+    }
+
+    return check_passed;
+  } 
+
+  void OfflineEvaluator::runOPE(std::vector<Field>& inputToOPE, std::vector<Field>& outputOfOPE, size_t count, bool verifyHA) {
     std::vector<fieldDig> chunk_digs;
     Field sender_id = Field(-1);
 
@@ -324,13 +366,133 @@ namespace dmAsyncAsteriskGOD {
       chunk_digs = OPE_res.chunk_digs;
       sender_id = Field(receiver_pid);
     }
-    verifyOPEMsgs(chunk_digs, sender_id);
+    if(verifyHA) {
+      verifyOPEMsgs(chunk_digs, sender_id);
+    }
   }
 
   void OfflineEvaluator::mult2SS(const Field& share1_val, const Field& share2_val, Field& output_val, 
     const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE) {
       output_val = share1_val * share2_val + outputOfOPE[idx_outputOfOPE] + outputOfOPE[idx_outputOfOPE+1];
       idx_outputOfOPE += 2;
+  }
+
+  PreprocCircuit<Field> OfflineEvaluator::dummy(int id, const LevelOrderedCircuit& circ, 
+    const std::unordered_map<wire_t, int>& input_pid_map, PRG& prg) {
+    PreprocCircuit<Field> preproc(circ.num_gates);
+    
+    Field Delta;
+    randomizeZZp(prg, Delta, sizeof(Field));
+    preproc.setTPKey(Delta);
+
+    for (const auto& level : circ.gates_by_level) {
+      for (const auto& gate : level) {
+        switch (gate->type) {
+          case GateType::kInp: {
+            auto pregate = std::make_unique<PreprocInput<Field>>();      
+            auto pid = input_pid_map.at(gate->out);
+            pregate->pid = pid;
+
+            TwoShare<Field> myShare;
+            Field mask, shareP, shareTP, macP, macTP;
+
+            randomizeZZp(prg, mask, sizeof(Field));
+            randomizeZZp(prg, shareP, sizeof(Field));
+            shareTP = mask - shareP;
+            randomizeZZp(prg, macP, sizeof(Field));
+            macTP = shareP * Delta - macP;
+
+            if(id == 0) {
+              myShare = TwoShare<Field>(shareTP);
+              myShare.setMACComponent(macTP);
+            } else {
+              myShare = TwoShare<Field>(shareP);
+              myShare.setMACComponent(macP);
+            }
+            myShare.setSecret(mask);
+
+            pregate->mask = myShare;   
+            preproc.gates[gate->out] = std::move(pregate);                
+            break;
+          }
+
+          case GateType::kAdd: {
+            const auto* g = static_cast<FIn2Gate*>(gate.get());
+            const auto& mask_in1 = preproc.gates[g->in1]->mask;
+            const auto& mask_in2 = preproc.gates[g->in2]->mask;
+            preproc.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 + mask_in2));    
+            break;
+          }
+
+          case GateType::kConstAdd: {
+            const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
+            const auto& mask = preproc.gates[g->in]->mask;
+            preproc.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
+            break;
+          }
+
+          case GateType::kConstMul: {
+            const auto* g = static_cast<ConstOpGate<Field>*>(gate.get());
+            const auto& mask = preproc.gates[g->in]->mask * g->cval;
+            preproc.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask));
+            break;
+          }
+
+          case GateType::kSub: {
+            const auto* g = static_cast<FIn2Gate*>(gate.get());
+            const auto& mask_in1 = preproc.gates[g->in1]->mask;
+            const auto& mask_in2 = preproc.gates[g->in2]->mask;
+            preproc.gates[gate->out] = std::make_unique<PreprocGate<Field>>((mask_in1 - mask_in2));
+            break;
+          }
+
+          case GateType::kMul: {
+            preproc.gates[gate->out] = std::make_unique<PreprocMultGate<Field>>();
+            const auto* g = static_cast<FIn2Gate*>(gate.get());
+            const auto& mask_in1 = preproc.gates[g->in1]->mask;
+            const auto& mask_in2 = preproc.gates[g->in2]->mask;
+
+            TwoShare<Field> myProd, myOut;
+            Field prod, prodP, prodTP, prodMacP, prodMacTP;
+            Field out, outP, outTP, outMacP, outMacTP;
+
+            prod = mask_in1.getSecret() * mask_in2.getSecret();
+            randomizeZZp(prg, prodP, sizeof(Field));
+            prodTP = prod - prodP;
+            randomizeZZp(prg, prodMacP, sizeof(Field));
+            prodMacTP = prodP * Delta - prodMacP;
+
+            randomizeZZp(prg, out, sizeof(Field));
+            randomizeZZp(prg, outP, sizeof(Field));
+            outTP = out - outP;
+            randomizeZZp(prg, outMacP, sizeof(Field));
+            outMacTP = outP * Delta - outMacP;
+
+            if (id == 0) {
+              myProd = TwoShare<Field>(prodTP);
+              myProd.setMACComponent(prodMacTP);
+              myOut = TwoShare<Field>(outTP);
+              myOut.setMACComponent(outMacTP);
+            }
+            else {
+              myProd = TwoShare<Field>(prodP);
+              myProd.setMACComponent(prodMacP);
+              myOut = TwoShare<Field>(outP);
+              myOut.setMACComponent(outMacP);
+            }
+            myOut.setSecret(out);
+
+            preproc.gates[gate->out] = std::move(std::make_unique<PreprocMultGate<Field>> (myOut, myProd));
+            break;
+          }
+
+          default: {
+            break;
+          }
+        }
+      }
+    }
+    return preproc;
   }
 
   void OfflineEvaluator::prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map) {
@@ -384,12 +546,11 @@ namespace dmAsyncAsteriskGOD {
             const auto* g = static_cast<FIn2Gate*>(gate.get());
             const auto& mask_in1 = preproc_.gates[g->in1]->mask;
             const auto& mask_in2 = preproc_.gates[g->in2]->mask;
+
             TwoShare<Field> mask_out; 
-        
-            // Generate a random mask for the output wire 
             randSS(id_, rgen_, mask_out);
+
             TwoShare<Field> mask_product;
-            // Compute cross terms with HP for mask_product = mask_in1 * mask_in2  
             randomShareSecret(id_, rgen_, mask_in1, mask_in2, mask_product, inputToOPE[0]);
             preproc_.gates[gate->out] = std::move(std::make_unique<PreprocMultGate<Field>> (mask_out, mask_product));
             break;
@@ -420,13 +581,12 @@ namespace dmAsyncAsteriskGOD {
           case GateType::kDotprod: {
             preproc_.gates[gate->out] = std::make_unique<PreprocDotpGate<Field>>();
             const auto* g = static_cast<SIMDGate*>(gate.get());
+
             TwoShare<Field>  mask_out;
-
-            // Generate a random mask for the output wire 
             randSS(id_, rgen_, mask_out);
-            // Compute the product mask after OPE 
-            TwoShare<Field> mask_product;
+        
 
+            TwoShare<Field> mask_product;
             for(size_t i = 0; i < g->in1.size(); i++) {
               const auto& mask_ai = preproc_.gates[g->in1[i]]->mask;
               const auto& mask_bi = preproc_.gates[g->in2[i]]->mask;
@@ -445,13 +605,10 @@ namespace dmAsyncAsteriskGOD {
       }
     }
   
-    // Run MSSR OLE for multiplication triples 
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
     
-    runOPE(inputToOPE[0], outputOfOPE, 0);
-
-    std::cout << "Finished first OPE" << std::endl;
+    runOPE(inputToOPE[0], outputOfOPE, 0, true);
 
     // After OLEs compute output mask on multiplication gates 
     for (const auto& level : circ_.gates_by_level) {
@@ -465,7 +622,8 @@ namespace dmAsyncAsteriskGOD {
             auto mask_in1_val = preproc_.gates[g->in1]->mask.getValue();
             auto mask_in2_val = preproc_.gates[g->in2]->mask.getValue();
             // Compute product share 
-            mult2SS(mask_in1_val, mask_in2_val, mask_in1_in2_product_val, outputOfOPE, idx_outputOfOPE);
+            multSS(mask_in1_val, mask_in2_val, mask_in1_in2_product_val, outputOfOPE, idx_outputOfOPE);
+
             pre_mul->mask_prod.setValue(mask_in1_in2_product_val);
             break;
           }
@@ -497,7 +655,7 @@ namespace dmAsyncAsteriskGOD {
             for(size_t i = 0; i < g->in1.size(); i++) {
               const auto& mask_ai_val = preproc_.gates[g->in1[i]]->mask.getValue();
               const auto& mask_bi_val = preproc_.gates[g->in2[i]]->mask.getValue();
-
+              
               Field mask_product_val;
               mult2SS(mask_ai_val, mask_bi_val, mask_product_val, outputOfOPE, idx_outputOfOPE);
               mask_vector_product_val += mask_product_val;
@@ -632,9 +790,8 @@ namespace dmAsyncAsteriskGOD {
     std::vector<Field> outputOfOPE;
     size_t idx_outputOfOPE = 0;
 
-    runOPE(inputToOPE[2], outputOfOPE, 2);
 
-    std::cout << "Finished third OPE" << std::endl;
+    runOPE(inputToOPE[1], outputOfOPE, 1, true);
 
     for (const auto& level : circ_.gates_by_level) {
       for (const auto& gate : level) {
@@ -710,6 +867,21 @@ namespace dmAsyncAsteriskGOD {
   PreprocCircuit<Field> OfflineEvaluator::run(const std::unordered_map<wire_t, int>& input_pid_map) {
       setWireMasks(input_pid_map);
       return std::move(preproc_);    
+  }
+
+  void OfflineEvaluator::justRunOpe(size_t num_input_gates, size_t num_mul_gates) {
+    // s (macPs on crossterms of multiplication gates)
+    size_t num_ope_first_round = 2 * num_mul_gates; 
+    inputToOPE[0] = std::vector<Field>(num_ope_first_round);  
+    std::vector<Field> outputOfOPE; 
+    runOPE(inputToOPE[0], outputOfOPE, 0, false);
+    outputOfOPE.clear();
+    outputOfOPE.shrink_to_fit();      
+
+    // Second round (macPs output wire of input + macPs on output wire of multiplication + macPs xy term multiplication)
+    size_t num_ope_second_round = num_input_gates + num_mul_gates + num_mul_gates;
+    inputToOPE[1] = std::vector<Field>(num_ope_second_round);  
+    runOPE(inputToOPE[1], outputOfOPE, 1, false);  
   }
 
 }; // namespace dmAsyncAsteriskGOD

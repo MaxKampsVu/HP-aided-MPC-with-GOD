@@ -30,6 +30,7 @@ namespace dmAsyncAsteriskGOD {
         LevelOrderedCircuit circ_;
         std::shared_ptr<ThreadPool> tpool_;
         std::shared_ptr<ThreadPool> tpool_minus_one_;
+        std::shared_ptr<ThreadPool> tpool_ack_;
         PreprocCircuit<Field> preproc_;
         std::vector<std::unique_ptr<OTProviderHA>> ot_;
         std::unordered_map<size_t, std::queue<Offline_Message>> offline_message_buffer_;
@@ -50,25 +51,17 @@ namespace dmAsyncAsteriskGOD {
         static void randSS(int pid, RandGenPool& rgen, TwoShare<Field>& share);
         static void randomShareSecret(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
             TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
-
-        static void randomShareSecret3(int pid, RandGenPool& rgen, const TwoShare<Field>& share1, const TwoShare<Field>& share2, 
-            TwoShare<Field>& prodShare, std::vector<Field>& inputToOPE);
-
+        static PreprocCircuit<Field> dummy(int id, const LevelOrderedCircuit& circ, 
+            const std::unordered_map<wire_t, int>& input_pid_map, PRG& prg);
         static void randSSWithParty(int pid, int dealer, RandGenPool& rgen, TwoShare<Field>& share, Field& secret);
         bool verifyOPEMsgs(std::vector<fieldDig> chunk_digs, Field sender_id);
-        void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count);
-
-        void mult2SS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
-
-        void mult3SS(const Field& share_a, 
-                    const Field& share_b,
-                    const Field& share_c, 
-                    
-                    Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
-
+        void runOPE(std::vector<Field>& inputToOPE, std::vector <Field>& outputOfOPE, size_t count, bool verifyHA);
+        void multSS(const Field& share1, const Field& share2, Field& output, const std::vector<Field>& outputOfOPE, size_t& idx_outputOfOPE);
         void prepareMaskValues(const std::unordered_map<wire_t,int>& input_pid_map);
         void prepareMaskMACs();
         void setWireMasks(const std::unordered_map<wire_t, int>& input_pid_map);
         PreprocCircuit<Field> run(const std::unordered_map<wire_t, int>& input_pid_map);
+
+        void justRunOpe(size_t num_input_gates, size_t num_mul_gates);
     };
 }; // namespace dmAsyncAsteriskGOD

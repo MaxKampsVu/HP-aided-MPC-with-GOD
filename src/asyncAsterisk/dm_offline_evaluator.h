@@ -38,6 +38,9 @@ namespace dmAsyncAsterisk {
         std::vector<bool> start_ot_;
         std::vector<std::vector<Field>> inputToOPE;
 
+        // Don't send share to party n if flag is set 
+        bool justRunOPEFlag = false;
+
         public:
         OfflineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network1, std::shared_ptr<NetIOMP> network2, 
             LevelOrderedCircuit circ, int threads, uint64_t seed = 200);
@@ -60,5 +63,7 @@ namespace dmAsyncAsterisk {
         void setWireMasks(const std::unordered_map<wire_t, int>& input_pid_map);
         bool TripleSacrifice();
         PreprocCircuit<Field> run(const std::unordered_map<wire_t, int>& input_pid_map);
+
+        void justRunOpe(size_t num_input_gates, size_t num_mul_gates);
     };
 }; // namespace dmAsyncAsterisk

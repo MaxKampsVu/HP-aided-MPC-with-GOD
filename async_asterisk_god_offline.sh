@@ -17,17 +17,17 @@ threads=64
 
 if test $run_opt = 0
 then
-	echo "Running synchronous Alhena MPC"
+	echo "Running synchronous Alhena offline phase"
 	echo "*****************************************************************"
-    pkill -f "dm_sync_asterisk_god_mpc"
-	run_app=./benchmarks/dm_sync_asterisk_god_mpc
-    dir=~/benchmark_data/dm_sync_asterisk_god_mpc
+    pkill -f "dm_sync_asterisk_god_offline"
+	run_app=./benchmarks/dm_sync_asterisk_god_offline
+    dir=~/benchmark_data/dm_sync_asterisk_god_offline
 else
-	echo "Running asynchronous Wasat MPC"
+	echo "Running asynchronous Wasat offline phase"
 	echo "*****************************************************************"
-    pkill -f "dm_async_asterisk_god_mpc"
-	run_app=./benchmarks/dm_async_asterisk_god_mpc
-    dir=~/benchmark_data/dm_async_asterisk_god_mpc
+    pkill -f "dm_async_asterisk_god_offline"
+	run_app=./benchmarks/dm_async_asterisk_god_offline
+    dir=~/benchmark_data/dm_async_asterisk_god_offline
 fi
 
 # rm -rf $dir/*.log $dir/g*.json

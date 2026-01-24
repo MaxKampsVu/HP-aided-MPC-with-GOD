@@ -109,7 +109,6 @@ namespace asyncAsterisk {
 
     send(inp_0.data(), inp_1.data(), num_blocks);
 
-
     return shares;
   }
       
@@ -129,9 +128,6 @@ namespace asyncAsterisk {
 
     std::vector<Field> recv_blocks(num_blocks);
     recv(recv_blocks.data(), choice_bits.get(), num_blocks);
-
-    auto dig = std::vector<Field>{Field(1), Field(2), Field(3), Field(4)};
-    auto empty = std::vector<Field>(0); 
 
     std::vector<Field> shares(inputs.size(), Field(0));
     idx = 0;

@@ -52,6 +52,18 @@ namespace asyncAsterisk {
     return {Field(tmp[0]), Field(tmp[1])};
   }
 
+  std::vector<Field> blocksToFields(emp::block* b, size_t length) {
+    std::vector<Field> result(length * 2);
+
+    std::vector<Field> buf(2);
+    for(int i = 0; i < length; i++) {
+      buf = blockToFields(b[i]);
+      result.push_back(buf[0]);
+      result.push_back(buf[1]);
+    }
+    return result;
+  }
+
 
   void OTProviderHA::send(const Field* data0, const Field* data1, size_t length, PRG& prg, fieldDig& ot_dig) {
     auto* data = new emp::block[length];    
@@ -68,7 +80,7 @@ namespace asyncAsterisk {
     for (size_t i = 0; i < length; i += ot_bsize) {
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         pad[2 * (j - i)] = data[j];
-        pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta; // TODO: make sure delta is the same 
+        pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta; 
       }
       ot_->mitccrh.hash<ot_bsize, 2>(pad);
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
@@ -78,14 +90,16 @@ namespace asyncAsterisk {
       }
     }
     
-    ot_dig = hashFields(blockToFields(s)); // TODO: append upad 
+    ot_dig = hashFields(blockToFields(s)); 
+    hashFields(upad);
     sendFieldElements(upad.data(), 2 * sizeof(Field) * length);
     delete[] data;
   }
 
   void OTProviderHA::recv(Field* rdata, const bool* r, size_t length, fieldDig& ot_dig) {
     auto* data = new emp::block[length];
-    ot_->recv_cot(data, r, length);    
+    ot_->recv_cot(data, r, length);   
+    blocksToFields(data, length);
     emp::block s;
     ios_[0]->recv_block(&s, 1);
     ot_->mitccrh.setS(s);
@@ -101,7 +115,7 @@ namespace asyncAsterisk {
         rdata[i + j] = res[2 * (i + j) + r[i + j]] - Field(tpad[2 * j]);
       }
     }
-    ot_dig = hashFields(blockToFields(s)); // TODO: append upad 
+    ot_dig = hashFields(blockToFields(s));
     delete[] data;
   }
 
@@ -175,7 +189,7 @@ namespace asyncAsterisk {
     for (size_t i = 0; i < length; i += ot_bsize) {
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         pad[2 * (j - i)] = data[j];
-        pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta; // TODO: make sure Delta is the same 
+        pad[2 * (j - i) + 1] = data[j] ^ ot_->Delta; 
       }
       for (size_t j = i; j < std::min(i + ot_bsize, length); j++) {
         upad[2 * j] = Field(tpad[4 * (j - i)]) + data0[j];
@@ -183,7 +197,8 @@ namespace asyncAsterisk {
       }
     }
 
-    ot_dig = hashFields(blockToFields(s)); // TODO: append upad 
+    ot_dig = hashFields(blockToFields(s)); 
+    hashFields(upad);
     delete[] data;
     return shares;
   }
@@ -214,9 +229,6 @@ namespace asyncAsterisk {
 
     std::vector<Field> recv_blocks(num_blocks);
     recv(recv_blocks.data(), choice_bits.get(), num_blocks, ot_dig);
-
-    auto dig = std::vector<Field>{Field(1), Field(2), Field(3), Field(4)};
-    auto empty = std::vector<Field>(0); 
 
     std::vector<Field> shares(inputs.size(), Field(0));
     idx = 0;

@@ -253,7 +253,7 @@ namespace dmAsyncAsterisk {
             Message message = message_buffer_[depth].front();
             std::queue<Message> empty;
             std::swap(message_buffer_[depth], empty);
-            
+
             for(size_t i = 0; i < mult_num; i++) {
                 mult_all[i] = agg_values[i] + message.data[i];
             }

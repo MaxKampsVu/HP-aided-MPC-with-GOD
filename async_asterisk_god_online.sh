@@ -1,13 +1,13 @@
 #!/bin/bash
 # set -x
 
-# Usage: ./../async_asterisk_offline.sh <g> <d> <players> <delay_party_count> <run_opt>
+# Usage: ./../async_asterisk_online.sh <g> <d> <players> <delay_party_count> <run_opt>
 # g: number of multiplication gates at each level
 # d: multiplication depth of the circuit
 # players: total number of parties
 # delay_party_count: number of parties that will be delayed
 # run_opt: 0 for Alhena, 1 for Wasat
-# Example: ./../async_asterisk_offline.sh 10 10 5 2 0
+# Example: ./../async_asterisk_online.sh 10 10 5 2 0
 
 delay_party_count=$4
 run_opt=$5
@@ -17,17 +17,17 @@ threads=64
 
 if test $run_opt = 0
 then
-	echo "Running synchronous Alhena MPC"
+	echo "Running synchronous Alhena MPC online phase"
 	echo "*****************************************************************"
-    pkill -f "dm_sync_asterisk_god_mpc"
-	run_app=./benchmarks/dm_sync_asterisk_god_mpc
-    dir=~/benchmark_data/dm_sync_asterisk_god_mpc
+    pkill -f "dm_sync_asterisk_god_online"
+	run_app=./benchmarks/dm_sync_asterisk_god_online
+    dir=~/benchmark_data/dm_sync_asterisk_god_online
 else
-	echo "Running asynchronous Wasat MPC"
+	echo "Running asynchronous Wasat online phase"
 	echo "*****************************************************************"
-    pkill -f "dm_async_asterisk_god_mpc"
-	run_app=./benchmarks/dm_async_asterisk_god_mpc
-    dir=~/benchmark_data/dm_async_asterisk_god_mpc
+    pkill -f "dm_async_asterisk_god_online"
+	run_app=./benchmarks/dm_async_asterisk_god_online
+    dir=~/benchmark_data/dm_async_asterisk_god_online
 fi
 
 # rm -rf $dir/*.log $dir/g*.json

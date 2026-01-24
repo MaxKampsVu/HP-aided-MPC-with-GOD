@@ -53,8 +53,10 @@ void benchmark(const bpo::variables_map& opts) {
     initNTL(threads);
 
     std::shared_ptr<NetIOMP> network = nullptr;
+    std::shared_ptr<NetIOMP> network_online = nullptr;
     if (opts["localhost"].as<bool>()) {
         network = std::make_shared<NetIOMP>(pid, nP+1, port, nullptr, true, latency);
+        network_online = std::make_shared<NetIOMP>(pid, nP+1, port, nullptr, true, latency);
     }
     else {
         std::ifstream fnet(opts["net-config"].as<std::string>());
@@ -74,6 +76,7 @@ void benchmark(const bpo::variables_map& opts) {
         }
 
         network = std::make_shared<NetIOMP>(pid, nP+1, port, ip.data(), false, latency);
+        network_online = std::make_shared<NetIOMP>(pid, nP+1, port, ip.data(), false, latency);
     }
     
     json output_data;
@@ -110,13 +113,13 @@ void benchmark(const bpo::variables_map& opts) {
 
     PreprocCircuit<Field> preproc;
     {
-        constexpr bool run_async = true;
+        constexpr bool run_async = false;
         OfflineEvaluator off_eval(nP, pid, security_param, network, network, circ, threads, seed, run_async);
         preproc = off_eval.run(input_pid_map);
     }
 
     {
-        OnlineEvaluator eval(nP, pid, security_param, network, std::move(preproc), circ, threads, seed);
+        OnlineEvaluator eval(nP, pid, security_param, network_online, std::move(preproc), circ, threads, seed);
         auto res = eval.evaluateCircuit(input_map);
     }    
     
