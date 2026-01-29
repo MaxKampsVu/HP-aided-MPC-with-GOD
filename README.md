@@ -1,6 +1,6 @@
 # Asynchronous HP-aided MPC with GOD 
 
-This directory contains the implementation of the Asynchronous/Synchronous HP-aided MPC with GOD dishonest majority protocols Alhena and Wasat.
+This directory contains the implementation of the Synchronous/Asynchronous HP-aided MPC with GOD dishonest majority protocols Alhena and Wasat.
 The protocol is implemented in C++17 and [CMake](https://cmake.org/) is used as the build system.
 
 **NOTICE:** This is an academic proof-of-concept prototype and has not received careful code review. This implementation is NOT ready for production use.
@@ -84,6 +84,6 @@ Execute the following commands from the `build` directory created during compila
 # Here the last argument stands for either Alhena (0) or
 # Wasat (1) and the second last argument denotes the number 
 # of delayed parties
-./../async_asterisk_mpc.sh 100 10 5 0 0
+./../dm_async_asterisk_god_mpc.sh 100 10 5 0 0
 
 ```
