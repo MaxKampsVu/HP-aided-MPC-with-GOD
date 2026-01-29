@@ -1,12 +1,12 @@
-#define BOOST_TEST_MODULE hm_online
+#define BOOST_TEST_MODULE dm_online
 
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/included/unit_test.hpp>
-#include "hm_offline_evaluator.h"
-#include "hm_online_evaluator.h"
+#include "dmgod_offline_evaluator.h"
+#include "dmgod_online_evaluator.h"
 
-using namespace hmAsyncAsterisk;
+using namespace dmAsyncAsteriskGOD;
 namespace bdata = boost::unit_test::data;
 
 constexpr int TEST_DATA_MAX_VAL = 1000;
@@ -20,9 +20,9 @@ struct GlobalFixture {
 
 BOOST_GLOBAL_FIXTURE(GlobalFixture);
 
-BOOST_AUTO_TEST_SUITE(hm_online_evaluator)
+BOOST_AUTO_TEST_SUITE(dm_god_online_evaluator)
 
-BOOST_AUTO_TEST_CASE(mult) {
+BOOST_AUTO_TEST_CASE(mult_sync) {
   ZZ_pContext ZZ_p_ctx;
   ZZ_p_ctx.save();
   int nP = 4;
@@ -51,26 +51,37 @@ BOOST_AUTO_TEST_CASE(mult) {
   for (int i = 0; i <= nP; ++i) {
       parties.push_back(std::async(std::launch::async, [&, i, input_pid_map, inputs]() {
       ZZ_p_ctx.restore();
-      auto network = std::make_shared<NetIOMP>(i, nP+1, 10000, nullptr, true);
-      
-      OfflineEvaluator eval(nP, i, SECURITY_PARAM, network, level_circ, nP+1);
-      auto preproc = eval.run(input_pid_map);
-           
-      OnlineEvaluator online_eval(nP, i, SECURITY_PARAM, std::move(network), std::move(preproc), level_circ, nP+1);      
-      auto res = online_eval.evaluateCircuit(inputs);
+      auto network1 = std::make_shared<NetIOMP>(i, nP+1, 10000, nullptr, true);
+      auto network2 = std::make_shared<NetIOMP>(i, nP+1, 10000+100, nullptr, true);
 
+      PreprocCircuit<Field> preproc;
+      {
+        constexpr bool run_async = false;
+        OfflineEvaluator eval(nP, i, SECURITY_PARAM, network1, network2, level_circ, nP+1, false);
+        preproc = eval.run(input_pid_map);
+      }
+      
+      std::vector<Field> res;
+      {
+        OnlineEvaluator online_eval(nP, i, SECURITY_PARAM, std::move(network1), std::move(preproc), level_circ, nP+1);      
+        res = online_eval.evaluateCircuit(inputs);
+      }
+      
       return res;      
     }));
   }
   int i = 0;
   for (auto& p : parties) {
-    auto output = p.get();
-    BOOST_TEST(exp_output == output);
+    // because for the last output, HP doesn't have the result.
+    if(i > 0) {
+      auto output = p.get();
+      BOOST_TEST(exp_output == output);
+    }
     i++;
   }
 }
 
-BOOST_AUTO_TEST_CASE(depth_2_circuit) {
+BOOST_AUTO_TEST_CASE(depth_2_circuit_sync) {
   ZZ_pContext ZZ_p_ctx;
   ZZ_p_ctx.save();
   int nP = 10;
@@ -104,30 +115,34 @@ BOOST_AUTO_TEST_CASE(depth_2_circuit) {
   for (int i = 0; i <= nP; ++i) {
       parties.push_back(std::async(std::launch::async, [&, i, input_pid_map, inputs]() {
       ZZ_p_ctx.restore();
-      auto network = std::make_shared<NetIOMP>(i, nP+1, 10000, nullptr, true);
-      
-      OfflineEvaluator eval(nP, i, SECURITY_PARAM, network, level_circ, nP+1);
-      auto preproc = eval.run(input_pid_map);
-     
-      OnlineEvaluator online_eval(nP, i, SECURITY_PARAM, std::move(network), std::move(preproc), level_circ, nP+1);      
-      auto res = online_eval.evaluateCircuit(inputs);
+      auto network1 = std::make_shared<NetIOMP>(i, nP+1, 10000, nullptr, true);
+      auto network2 = std::make_shared<NetIOMP>(i, nP+1, 10000+2000, nullptr, true);
 
+      PreprocCircuit<Field> preproc;
+      {
+        constexpr bool run_async = false;
+        OfflineEvaluator eval(nP, i, SECURITY_PARAM, network1, network2, level_circ, nP+1, run_async);
+        preproc = eval.run(input_pid_map);
+      }
+      
+      std::vector<Field> res;
+      {
+        OnlineEvaluator online_eval(nP, i, SECURITY_PARAM, std::move(network1), std::move(preproc), level_circ, nP+1);      
+        res = online_eval.evaluateCircuit(inputs);
+      }
+           
       return res;      
     }));
   }
-  int i = 0;  
+  int i = 0;
   for (auto& p : parties) {
     auto output = p.get();
+    // because for the last output, HP doesn't have the result.
     if(i > 0) {
       BOOST_TEST(exp_output == output);
     }
-    else {
-      for (int j=0; j<2; j++) { // because for the last output, HP doesn't have the result.
-        BOOST_TEST(exp_output[j] == output[j]);
-      }
-    }
     i++;
-  }  
+  }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

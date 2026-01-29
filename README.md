@@ -1,4 +1,4 @@
-# Asynchronous HP-aided MPC
+# Asynchronous HP-aided MPC with GOD 
 
 This directory contains the implementation of the Asynchronous/Synchronous HP-aided MPC with GOD dishonest majority protocols Alhena and Wasat.
 The protocol is implemented in C++17 and [CMake](https://cmake.org/) is used as the build system.
@@ -86,60 +86,4 @@ Execute the following commands from the `build` directory created during compila
 # of delayed parties
 ./../async_asterisk_mpc.sh 100 10 5 0 0
 
-```
-
-## Usage of https://github.com/cris-coders-iisc/Asynchronous-HP-aided-MPC
-A short description of the compiled programs is given below.
-All of them provide detailed usage description on using the `--help` option.
-
-- `benchmarks/hm_async_asterisk_mpc`: Benchmark the performance of Asynchronous HP-aided MPC protocol (both offline and online phases) in honest-majority setiing by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/hm_async_asterisk_offline`: Benchmark the performance of Asynchronous HP-aided MPC protocol (only offline phase) in honest-majority setiing by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/hm_async_asterisk_online`: Benchmark the performance of Asynchronous HP-aided MPC protocol (only online phase) in honest-majority setiing by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/dm_async_asterisk_mpc`: Benchmark the performance of Asynchronous HP-aided MPC protocol (both offline and online phases) in dishonest-majority setiing by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/dm_async_asterisk_offline`: Benchmark the performance of Asynchronous HP-aided MPC protocol (only offline phase) in dishonest-majority setiing by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/dm_async_asterisk_online`: Benchmark the performance of Asynchronous HP-aided MPC protocol (only online phase) in dishonest-majority setiing by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `tests/*`: These programs contain unit tests for various parts of the codebase. 
-
-Execute the following commands from the `build` directory created during compilation to run the programs:
-```sh
-# Benchmark Asynchronous HP-aided MPC MPC for honest-majority setting.
-#
-# The command below should be run on four different terminals with $PID set to
-# 0, 1, 2, and 3 i.e., one instance corresponding to each party.
-#
-# The number of threads can be set using the '-t' option. '-g' denotes the 
-# number of multiplication gates at each level, '-d' denotes the multiplicative depth 
-# of the circuit and '-n' the number of parties participating in the protocol.
-#
-# The program can be run on different machines by replacing the `--localhost`
-# option with '--net-config <net_config.json>' where 'net_config.json' is a
-# JSON file containing the IPs of the parties. A template is given in the
-# repository root.¨¨
-./benchmarks/hm_async_asterisk_mpc -p $PID --localhost -g 100 -d 10 -n 5
-
-# The `async_asterisk_mpc` script in the repository root can be used to run the
-# programs for all parties from the same terminal.
-# For example, the previous benchmark can be run using the script as shown below.
-# Here the last argument stands for either honest-majority setting (0) or
-# dishonest majority setting (1) and the second last argument denotes the number 
-# of delayed parties
-./../async_asterisk_mpc.sh 100 10 5 0 0
-
-# All other benchmark programs have similar options and behaviour. The '-h'
-# option can be used for detailed usage information.
-
-# Benchmark Asynchronous HP-aided MPC MPC for dish¨onest-majority setting.
-./../async_asterisk_mpc.sh 100 10 5 0 1
-
-# Benchmark Asynchronous HP-aided MPC offline phase for honest-majority setting.
-./../async_asterisk_offline.sh 100 10 5 0 0
-
-# Benchmark Asynchronous HP-aided MPC offline phase for dishonest-majority setting.
-./../async_asterisk_offline.sh 100 10 5 0 1
-
-# Benchmark Asynchronous HP-aided MPC online phase for honest-majority setting.
-./../async_asterisk_online.sh 100 10 5 0 0
-
-# Benchmark Asynchronous HP-aided MPC online phase for dishonest-majority setting.
-./../async_asterisk_online.sh 100 10 5 0 1
 ```
