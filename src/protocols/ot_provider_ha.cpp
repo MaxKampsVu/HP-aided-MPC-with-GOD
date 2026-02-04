@@ -1,6 +1,6 @@
 #include "ot_provider_ha.h"
 
-namespace asyncAsterisk {
+namespace dmGOD {
   constexpr size_t ot_bsize = emp::ot_bsize;
 
   OTProviderHA::OTProviderHA(int my_id, int other_id, NetIO* io) : ios_{io} {
@@ -242,4 +242,4 @@ namespace asyncAsterisk {
     return shares;
   }
 
-}; // namespace asyncAsterisk
+}; // namespace dmGOD

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <emp-tool/emp-tool.h>
-#include "dmgod_preproc.h"
+#include "preproc.h"
 #include "rand_gen_pool.h"
 #include "ot_provider_ha.h"
 #include "netmp.h"
@@ -10,9 +10,9 @@
 
 using namespace io;
 using namespace utils;
-using namespace asyncAsterisk;
+using namespace dmGOD;
 
-namespace dmAsyncAsteriskGOD {
+namespace dmGOD {
     typedef struct Offline_Message {
         size_t receiver_id;
         std::vector<Field> data;
@@ -64,4 +64,4 @@ namespace dmAsyncAsteriskGOD {
 
         void justRunOpe(size_t num_input_gates, size_t num_mul_gates);
     };
-}; // namespace dmAsyncAsteriskGOD
+}; // namespace dmGOD

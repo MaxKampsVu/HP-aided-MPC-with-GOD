@@ -52,12 +52,12 @@ make <target>
 ## Usage 
 
 
-- `benchmarks/dm_sync_asterisk_god_mpc`: Benchmark the performance of synchronous HP-aided MPC protocol with god (both offline and online phases) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/dm_sync_asterisk_god_offline`: Benchmark the performance of synchronous HP-aided MPC protocol (only offline phase) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/dm_sync_asterisk_god_online`: Benchmark the performance of synchronous HP-aided MPC protocol (only online phase) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/dm_async_asterisk_god_mpc`: Benchmark the performance of asynchronous HP-aided MPC protocol (both offline and online phases) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/dm_async_asterisk_god_offline`: Benchmark the performance of asynchronous HP-aided MPC protocol (only offline phase) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/dm_async_asterisk_god_online`: Benchmark the performance of asynchronous HP-aided MPC protocol (only online phase) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/alhena_mpc`: Benchmark the performance of synchronous HP-aided MPC protocol with god (both offline and online phases) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/alhena_offline`: Benchmark the performance of synchronous HP-aided MPC protocol (only offline phase) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/alhena_online`: Benchmark the performance of synchronous HP-aided MPC protocol (only online phase) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/wasat_mpc`: Benchmark the performance of asynchronous HP-aided MPC protocol (both offline and online phases) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/wasat_offline`: Benchmark the performance of asynchronous HP-aided MPC protocol (only offline phase) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/wasat_online`: Benchmark the performance of asynchronous HP-aided MPC protocol (only online phase) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
 - `tests/*`: These programs contain unit tests for various parts of the codebase. 
 
 
@@ -76,14 +76,16 @@ Execute the following commands from the `build` directory created during compila
 # option with '--net-config <net_config.json>' where 'net_config.json' is a
 # JSON file containing the IPs of the parties. A template is given in the
 # repository root.¨¨
-./benchmarks/dm_async_asterisk_god_mpc -p $PID --localhost -g 100 -d 10 -n 5
+./benchmarks/mpc -p $PID --localhost -g 100 -d 10 -n 5
 
-# The `dm_async_asterisk_god_mpc` script in the repository root can be used to run the
+# The `mpc` script in the repository root can be used to run the
 # programs for all parties from the same terminal.
 # For example, the previous benchmark can be run using the script as shown below.
 # Here the last argument stands for either Alhena (0) or
 # Wasat (1) and the second last argument denotes the number 
 # of delayed parties
-./../dm_async_asterisk_god_mpc.sh 100 10 5 0 0
+./../mpc.sh 100 10 5 0 0
 
+# Additionaly, we provide scripts with the same arguments for just the offline phase (`offline.sh`) 
+# and just the online phase (`online.sh`). 
 ```

@@ -1,6 +1,6 @@
 #include "rand_gen_pool.h"
 
-namespace asyncAsterisk {
+namespace dmGOD {
   RandGenPool::RandGenPool(int my_id, int num_parties,  uint64_t seed) : id_{my_id}, k_pi(num_parties), k_pij(num_parties), k_pj(num_parties) { 
     auto seed_block = makeBlock(seed, 0); 
     k_self.reseed(&seed_block, 0);
@@ -33,4 +33,4 @@ namespace asyncAsterisk {
   PRG& RandGenPool::pi(int i) { return k_pi[i-1]; }
   PRG& RandGenPool::pij(int i, int j) { return k_pij[i-1][j-1]; }
   PRG& RandGenPool::pj(int j) { return k_pj[j-1]; }
-};  // namespace asyncAsterisk
+};  // namespace dmGOD

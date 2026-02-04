@@ -19,15 +19,15 @@ if test $run_opt = 0
 then
 	echo "Running synchronous Alhena MPC online phase"
 	echo "*****************************************************************"
-    pkill -f "dm_sync_asterisk_god_online"
-	run_app=./benchmarks/dm_sync_asterisk_god_online
-    dir=~/benchmark_data/dm_sync_asterisk_god_online
+    pkill -f "alhena_online"
+	run_app=./benchmarks/alhena_online
+    dir=~/benchmark_data/alhena_online
 else
 	echo "Running asynchronous Wasat online phase"
 	echo "*****************************************************************"
-    pkill -f "dm_async_asterisk_god_online"
-	run_app=./benchmarks/dm_async_asterisk_god_online
-    dir=~/benchmark_data/dm_async_asterisk_god_online
+    pkill -f "wasat_online"
+	run_app=./benchmarks/wasat_online
+    dir=~/benchmark_data/wasat_online
 fi
 
 # rm -rf $dir/*.log $dir/g*.json

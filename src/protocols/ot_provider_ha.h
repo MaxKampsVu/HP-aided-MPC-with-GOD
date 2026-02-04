@@ -7,7 +7,7 @@
 using namespace emp;
 using namespace utils;
 
-namespace asyncAsterisk {
+namespace dmGOD {
     const size_t SYNC_SENDER_PID = 1;
 
     class OTProviderHA {
@@ -27,4 +27,4 @@ namespace asyncAsterisk {
         std::vector<Field> multiplySend(const std::vector<Field>& inputs, PRG& prg, fieldDig& ot_dig, bool run_async, size_t pid);
         std::vector<Field> multiplyRecv(const std::vector<Field>& inputs, fieldDig& ot_dig);
     }; 
-}; // namespace asyncAsterisk
+}; // namespace dmGOD

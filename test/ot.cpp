@@ -6,7 +6,7 @@
 #include "ot_provider.h"
 #include "netmp.h"
 
-using namespace asyncAsterisk;
+using namespace protocols;
 using namespace io;
 namespace bdata = boost::unit_test::data;
 

@@ -4,7 +4,7 @@
 
 using namespace utils;
 
-namespace dmAsyncAsteriskGOD {
+namespace dmGOD {
     template <class R>
     class TwoShare {
         R value_;
@@ -81,4 +81,4 @@ namespace dmAsyncAsteriskGOD {
             tp_mac_components[i] = key * p_shares[i] - tp_mac_components[i];
         }
     }
-}; // namespace dmAsyncAsteriskGOD
+}; // namespace dmGOD

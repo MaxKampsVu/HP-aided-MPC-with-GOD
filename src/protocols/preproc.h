@@ -1,8 +1,8 @@
 #pragma once
 
-#include "dmgod_sharing.h"
+#include "sharing.h"
 
-namespace dmAsyncAsteriskGOD {
+namespace dmGOD {
   template <class R>
   struct PreprocGate {
     TwoShare<R> mask; // Secret shared mask for the output wire of the gate.
@@ -60,4 +60,4 @@ namespace dmAsyncAsteriskGOD {
         : PreprocGate<R>(mask), mask_prod(mask_prod) {}
   };
 
-};  // namespace dmAsyncAsterisksGOD
+};  // namespace dmGODsGOD

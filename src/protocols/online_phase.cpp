@@ -1,6 +1,6 @@
-#include "dmgod_online_evaluator.h"
+#include "online_phase.h"
 
-namespace dmAsyncAsteriskGOD {
+namespace dmGOD {
 
     OnlineEvaluator::OnlineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network, PreprocCircuit<Field> preproc, 
         LevelOrderedCircuit circ, int threads, uint64_t seed) 
@@ -389,4 +389,4 @@ namespace dmAsyncAsteriskGOD {
 
         return getOutputs();
     }
-}; // namespace dmAsyncAsteriskGOD
+}; // namespace dmGOD

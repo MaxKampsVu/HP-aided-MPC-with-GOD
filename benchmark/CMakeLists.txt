@@ -4,19 +4,19 @@ set(benchbin "")
 
 macro(add_benchmark source_name)
     add_executable(${source_name} ${source_name}.cpp utils.cpp)
-    target_link_libraries(${source_name} Boost::system Boost::program_options nlohmann_json::nlohmann_json Threads::Threads NTL GMP EMPTool AsyncAsterisk)
+    target_link_libraries(${source_name} Boost::system Boost::program_options nlohmann_json::nlohmann_json Threads::Threads NTL GMP EMPTool protocols)
     list(APPEND benchbin ${source_name})
 endmacro()
 
 # benchmarks 
-add_benchmark(dm_async_asterisk_god_mpc)
-add_benchmark(dm_async_asterisk_god_offline)
-add_benchmark(dm_async_asterisk_god_online)
-add_benchmark(dm_sync_asterisk_god_mpc)
-add_benchmark(dm_sync_asterisk_god_offline)
-add_benchmark(dm_sync_asterisk_god_online)
-add_benchmark(dm_async_asterisk_god_ope)
-add_benchmark(dm_sync_asterisk_god_ope)
+add_benchmark(wasat_mpc)
+add_benchmark(wasat_offline)
+add_benchmark(wasat_online)
+add_benchmark(alhena_mpc)
+add_benchmark(alhena_offline)
+add_benchmark(alhena_online)
+add_benchmark(wasat_ope)
+add_benchmark(alhena_ope)
 
 
 add_custom_target(benchmarks)

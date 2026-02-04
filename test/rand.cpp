@@ -5,8 +5,8 @@
 #include <boost/test/included/unit_test.hpp>
 #include "rand_gen_pool.h"
 
-using namespace asyncAsterisk;
 namespace bdata = boost::unit_test::data;
+using namespace dmGOD;
 
 constexpr int TEST_DATA_MAX_VAL = 1000;
 

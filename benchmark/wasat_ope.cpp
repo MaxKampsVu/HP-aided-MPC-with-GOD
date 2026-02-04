@@ -1,10 +1,10 @@
 #include <boost/program_options.hpp>
 
 #include "utils.h"
-#include "dmgod_offline_evaluator.h"
-#include "dmgod_online_evaluator.h"
+#include "offline_phase.h"
+#include "online_phase.h"
 
-using namespace dmAsyncAsteriskGOD;
+using namespace dmGOD;
 namespace bpo = boost::program_options;
 
 Circuit<Field> generateCircuit(size_t gates_per_level, size_t depth) {
@@ -53,10 +53,8 @@ void benchmark(const bpo::variables_map& opts) {
     initNTL(threads);
 
     std::shared_ptr<NetIOMP> network = nullptr;
-    std::shared_ptr<NetIOMP> network_online = nullptr;
     if (opts["localhost"].as<bool>()) {
         network = std::make_shared<NetIOMP>(pid, nP+1, port, nullptr, true, latency);
-        network_online = std::make_shared<NetIOMP>(pid, nP+1, port, nullptr, true, latency);
     }
     else {
         std::ifstream fnet(opts["net-config"].as<std::string>());
@@ -76,9 +74,8 @@ void benchmark(const bpo::variables_map& opts) {
         }
 
         network = std::make_shared<NetIOMP>(pid, nP+1, port, ip.data(), false, latency);
-        network_online = std::make_shared<NetIOMP>(pid, nP+1, port, ip.data(), false, latency);
     }
-    
+
     json output_data;
     output_data["details"] = {{"gates_per_level", gates_per_level},
                                 {"depth", depth},
@@ -111,17 +108,13 @@ void benchmark(const bpo::variables_map& opts) {
 
     StatsPoint start(*network);
 
-    PreprocCircuit<Field> preproc;
-    {
-        constexpr bool run_async = false;
-        OfflineEvaluator off_eval(nP, pid, security_param, network, network, circ, threads, seed, run_async);
-        preproc = off_eval.run(input_pid_map);
-    }
+    // Only run opes 
 
     {
-        OnlineEvaluator eval(nP, pid, security_param, network_online, std::move(preproc), circ, threads, seed);
-        auto res = eval.evaluateCircuit(input_map);
-    }    
+        constexpr bool run_async = true;
+        OfflineEvaluator off_eval(nP, pid, security_param, network, network, circ, threads, seed, run_async);
+        off_eval.justRunOpe(circ.count[GateType::kInp], circ.count[GateType::kMul]);
+    }
     
     StatsPoint end(*network);
     

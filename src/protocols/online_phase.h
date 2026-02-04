@@ -1,16 +1,16 @@
 #pragma once
 
-#include "dmgod_preproc.h"
+#include "preproc.h"
 #include "rand_gen_pool.h"
 #include "netmp.h"
 #include "circuit.h"
-#include "dmgod_sharing.h"
+#include "sharing.h"
 
 using namespace io;
 using namespace utils;
-using namespace asyncAsterisk;
+using namespace dmGOD;
 
-namespace dmAsyncAsteriskGOD {
+namespace dmGOD {
     typedef struct Message {
         size_t receiver_id;
         std::vector<Field> data;
@@ -51,4 +51,4 @@ namespace dmAsyncAsteriskGOD {
         std::vector<Field> getOutputs();
         std::vector<Field> evaluateCircuit(const std::unordered_map<wire_t, Field> &inputs);
     };
-}; // namespace dmAsyncAsterisk
+}; // namespace dmGOD

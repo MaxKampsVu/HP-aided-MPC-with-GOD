@@ -1,6 +1,6 @@
-#include "dmgod_offline_evaluator.h"
+#include "offline_phase.h"
 
-namespace dmAsyncAsteriskGOD {
+namespace dmGOD {
 
   OfflineEvaluator::OfflineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network1, 
     std::shared_ptr<NetIOMP> network2, LevelOrderedCircuit circ, int threads, uint64_t seed, bool run_async) 
@@ -785,4 +785,4 @@ namespace dmAsyncAsteriskGOD {
     runOPE(inputToOPE[1], outputOfOPE, 1, false);  
   }
 
-}; // namespace dmAsyncAsteriskGOD
+}; // namespace dmGOD

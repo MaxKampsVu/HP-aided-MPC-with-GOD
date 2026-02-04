@@ -4,7 +4,7 @@
 
 using namespace emp;
 
-namespace asyncAsterisk {
+namespace dmGOD {
   // Collection of PRGs.
   class RandGenPool {
     int id_;
@@ -29,4 +29,4 @@ namespace asyncAsterisk {
     PRG& pij(int i, int j);
     PRG& pj(int j);
   };
-};  // namespace asyncAsterisk
+};  // namespace dmGOD

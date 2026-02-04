@@ -19,15 +19,15 @@ if test $run_opt = 0
 then
 	echo "Running synchronous Alhena MPC"
 	echo "*****************************************************************"
-    pkill -f "dm_sync_asterisk_god_mpc"
-	run_app=./benchmarks/dm_sync_asterisk_god_mpc
-    dir=~/benchmark_data/dm_sync_asterisk_god_mpc
+    pkill -f "alhena_mpc"
+	run_app=./benchmarks/alhena_mpc
+    dir=~/benchmark_data/alhena_mpc
 else
 	echo "Running asynchronous Wasat MPC"
 	echo "*****************************************************************"
-    pkill -f "dm_async_asterisk_god_mpc"
-	run_app=./benchmarks/dm_async_asterisk_god_mpc
-    dir=~/benchmark_data/dm_async_asterisk_god_mpc
+    pkill -f "wasat_mpc"
+	run_app=./benchmarks/wasat_mpc
+    dir=~/benchmark_data/wasat_mpc
 fi
 
 # rm -rf $dir/*.log $dir/g*.json

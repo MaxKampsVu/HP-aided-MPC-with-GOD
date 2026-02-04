@@ -3,10 +3,10 @@
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/included/unit_test.hpp>
-#include "dmgod_offline_evaluator.h"
-#include "dmgod_online_evaluator.h"
+#include "offline_phase.h"
+#include "online_phase.h"
 
-using namespace dmAsyncAsteriskGOD;
+using namespace dmGOD;
 namespace bdata = boost::unit_test::data;
 
 constexpr int TEST_DATA_MAX_VAL = 1000;
