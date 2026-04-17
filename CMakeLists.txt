@@ -48,12 +48,12 @@ if(EMP-OT_FOUND)
 endif()
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/ot_data
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/ot_data
+        OUTPUT ${CMAKE_BINARY_DIR}/ot_data
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/ot_data
 )
 
 add_custom_target(create_ot_data ALL
-    DEPENDS ${CMAKE_BINARY_DIR}/ot_data
+        DEPENDS ${CMAKE_BINARY_DIR}/ot_data
 )
 
 add_subdirectory(src)

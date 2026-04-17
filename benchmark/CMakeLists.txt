@@ -17,6 +17,7 @@ add_benchmark(alhena_offline)
 add_benchmark(alhena_online)
 add_benchmark(wasat_ope)
 add_benchmark(alhena_ope)
+add_benchmark(alhena_online_cheaters)
 
 
 add_custom_target(benchmarks)
