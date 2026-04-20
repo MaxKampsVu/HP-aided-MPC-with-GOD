@@ -16,7 +16,7 @@ using namespace dmGOD;
 
 namespace dmGOD {
     typedef struct Message {
-        int receiver_id; // Changed to int to match party IDs
+        int receiver_id;
         std::vector<Field> data;
     } Message;
 
@@ -34,12 +34,7 @@ namespace dmGOD {
         std::vector<Field> q_val_;
         std::vector<TwoShare<Field>> q_sh_;
         std::shared_ptr<ThreadPool> tpool_;
-
-        // Storage for messages received by Party 0
         std::unordered_map<size_t, std::queue<Message>> message_buffer_;
-
-        // Set to track parties that failed MAC verification
-
         std::mutex mtx_;
         std::condition_variable cv_;
         std::condition_variable cv_start_recv_;
@@ -48,7 +43,6 @@ namespace dmGOD {
         bool start_recv_;
 
     public:
-        // Updated constructor signature to include num_cheaters
         OnlineEvaluator(int nP, int id, int security_param, std::shared_ptr<NetIOMP> network,
                         PreprocCircuit<Field> preproc, LevelOrderedCircuit circ,
                         int threads, uint64_t seed = 200, int num_cheaters = 0);
@@ -61,8 +55,6 @@ namespace dmGOD {
         void evaluateGatesAtDepthPartyRecv(size_t depth, std::vector<Field> mult_all);
         void evaluateGatesAtDepth(size_t depth);
 
-        // MAC verification logic is now integrated into evaluateGatesAtDepth
-        // per the logic in the .cpp file, but kept if you need external calls.
         bool MACVerification();
 
         std::vector<Field> getOutputs();
