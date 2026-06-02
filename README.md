@@ -52,12 +52,15 @@ make <target>
 ## Usage 
 
 
-- `benchmarks/alhena_mpc`: Benchmark the performance of synchronous HP-aided MPC protocol with god (both offline and online phases) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/alhena_mpc`: Benchmark the performance of synchronous HP-aided MPC protocol with god (both offline and shared online phases) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
 - `benchmarks/alhena_offline`: Benchmark the performance of synchronous HP-aided MPC protocol (only offline phase) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/alhena_online`: Benchmark the performance of synchronous HP-aided MPC protocol (only online phase) Alhena by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/wasat_mpc`: Benchmark the performance of asynchronous HP-aided MPC protocol (both offline and online phases) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/alhena_online`: Benchmark the performance of the shared online phase synchronous/asynchronous HP-aided MPC protocol Alhena/Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/wasat_mpc`: Benchmark the performance of asynchronous HP-aided MPC protocol (both offline and shared online phases) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
 - `benchmarks/wasat_offline`: Benchmark the performance of asynchronous HP-aided MPC protocol (only offline phase) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
-- `benchmarks/wasat_online`: Benchmark the performance of asynchronous HP-aided MPC protocol (only online phase) Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+- `benchmarks/wasat_online`: Benchmark the performance of the shared online phase synchronous/asynchronous HP-aided MPC protocol Alhena/Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth.
+
+- `benchmarks/alhena_online_cheaters`: Benchmark the performance of the shared online phase synchronous/asynchronous HP-aided MPC protocol Alhena/Wasat by evaluating a circuit with a given depth and number of multiplication gates at each depth in the presence of cheaters. A cheater sends invalid data to the HP in every round of the protocol.
+
 - `tests/*`: These programs contain unit tests for various parts of the codebase. 
 
 
@@ -82,10 +85,21 @@ Execute the following commands from the `build` directory created during compila
 # programs for all parties from the same terminal.
 # For example, the previous benchmark can be run using the script as shown below.
 # Here the last argument stands for either Alhena (0) or
-# Wasat (1) and the second last argument denotes the number 
-# of delayed parties
+# Wasat (1) and the preceding arguments stand for: 
+#   - gates per circuit layer: 100
+#   - number of circuit layers: 10
+#   - number of parties: 5
+#   - number of delayed parties: 0
+#   - protocol: Alhena (0) 
 ./../mpc.sh 100 10 5 0 0
 
 # Additionaly, we provide scripts with the same arguments for just the offline phase (`offline.sh`) 
 # and just the online phase (`online.sh`). 
+
+# For the `online` script the user can additionally specify the number of corrupt parties.
+# A corrupt party sends invalid data to the HP in every round.
+# Once it is caught cheating by the HP, the HP closes the communication channel to that party.
+# The number of corrupt parties can be specified in the last argument, for example 3
+./../online.sh 100 10 5 0 0 3
+
 ```
