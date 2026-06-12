@@ -96,10 +96,10 @@ Execute the following commands from the `build` directory created during compila
 # Additionaly, we provide scripts with the same arguments for just the offline phase (`offline.sh`) 
 # and just the online phase (`online.sh`). 
 
-# For the `online` script the user can additionally specify the number of corrupt parties.
+# For the `online_cheaters` script the user can additionally specify the number of corrupt parties.
 # A corrupt party sends invalid data to the HP in every round.
 # Once it is caught cheating by the HP, the HP closes the communication channel to that party.
 # The number of corrupt parties can be specified in the last argument, for example 3
-./../online.sh 100 10 5 0 0 3
+./../online_cheaters.sh 100 10 5 0 0 3
 
 ```
